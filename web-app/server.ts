@@ -13,7 +13,7 @@ const express = require('express');
 dotenv.config();
 
 const dev = process.env.NODE_ENV !== 'production';
-const hostname = 'localhost';
+const hostname = '0.0.0.0';
 const port = parseInt(process.env.PORT || '3000', 10);
 
 const app = next({ dev, hostname, port });
@@ -60,8 +60,8 @@ app.prepare().then(async () => {
       try {
         const product = await Product.findOne({ id: productId }).lean();
         if (product) {
-          product._id = product._id.toString(); 
-          io.emit('productChanged', product);
+          const mappedProduct = { ...product, _id: (product._id as any).toString() };
+          io.emit('productChanged', mappedProduct);
           
           io.emit('hardwareCommand', {
             productLed: productId,
@@ -77,6 +77,11 @@ app.prepare().then(async () => {
        const products = await Product.find({}).lean();
        const mappedProducts = products.map(p => ({...p, _id: p._id.toString()}));
        io.emit('productsUpdated', mappedProducts);
+    });
+    
+    socket.on('hardwareStatus', (status) => {
+      console.log('Hardware status received:', status);
+      io.emit('liveHardwareStatus', status);
     });
 
     socket.on('disconnect', () => {

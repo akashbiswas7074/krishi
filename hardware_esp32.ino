@@ -1,12 +1,11 @@
-#include <WiFi.h>
 #include <SocketIoClient.h>
+#include <WiFi.h>
 
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+const char *ssid = "jharnais A 15";
+const char *password = "12345678";
 
 // IP Address of the computer running the Node.js backend
-// e.g., 192.168.1.5
-char host[] = "192.168.X.X"; 
+char host[] = "10.29.56.42";
 int port = 3000;
 
 SocketIoClient webSocket;
@@ -23,26 +22,22 @@ const int PIN_POTATO = 21;
 // Define the GPIO pins for the products in the idol's hand
 const int PIN_GAINEXA = 22;
 const int PIN_CENTURION = 23;
-// ... (Add more pins for other products as needed)
 
 void setup() {
   Serial.begin(115200);
-  
-  // Set all pins to output mode
+
   pinMode(PIN_PADDY, OUTPUT);
   pinMode(PIN_JUTE, OUTPUT);
   pinMode(PIN_VEGETABLE, OUTPUT);
   pinMode(PIN_SUGARCANE, OUTPUT);
   pinMode(PIN_CORN, OUTPUT);
   pinMode(PIN_POTATO, OUTPUT);
-  
+
   pinMode(PIN_GAINEXA, OUTPUT);
   pinMode(PIN_CENTURION, OUTPUT);
-  
-  // Clear all LEDs initially
+
   turnOffAllLeds();
 
-  // Connect to Wi-Fi
   Serial.print("Connecting to ");
   Serial.println(ssid);
   WiFi.begin(ssid, password);
@@ -50,49 +45,56 @@ void setup() {
     delay(500);
     Serial.print(".");
   }
-  Serial.println("\nWiFi connected.");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
+  webSocket.on("connect", [](const char * payload, size_t length) {
+    Serial.println("Connected to server!");
+  });
 
-  // Define Socket.io event callbacks
+  webSocket.on("disconnect", [](const char * payload, size_t length) {
+    Serial.println("Disconnected from server!");
+  });
+
   webSocket.on("hardwareCommand", handleHardwareCommand);
-
+  
   // Connect to the Node.js server
-  webSocket.begin(host, port);
+  // /socket.io/?EIO=4 is usually required for Socket.IO v3/v4
+  webSocket.begin(host, port, "/socket.io/?EIO=4");
 }
 
-void loop() {
-  webSocket.loop();
-}
+void loop() { webSocket.loop(); }
 
-void handleHardwareCommand(const char * payload, size_t length) {
+void handleHardwareCommand(const char *payload, size_t length) {
   Serial.printf("Received Hardware Command: %s\n", payload);
-  
-  // 1. Parse the JSON payload received from the server. 
-  // Payload looks like: {"productLed":"gainexa","fieldLeds":["paddy","cauliflower","cabbage"]}
-  // You can use the ArduinoJson library to parse this properly.
-  // Example pseudo-logic:
-  
-  turnOffAllLeds(); // Reset state
-  
-  // Use string searching (simplified) or ArduinoJson
+
+  turnOffAllLeds();
+
   String dataString = String(payload);
-  
-  // Toggle the product LED
-  if (dataString.indexOf("\"productLed\":\"gainexa\"") > 0) digitalWrite(PIN_GAINEXA, HIGH);
-  if (dataString.indexOf("\"productLed\":\"centurion\"") > 0) digitalWrite(PIN_CENTURION, HIGH);
-  
-  // Toggle the Field LEDs
-  if (dataString.indexOf("\"paddy\"") > 0) digitalWrite(PIN_PADDY, HIGH);
-  if (dataString.indexOf("\"jute\"") > 0) digitalWrite(PIN_JUTE, HIGH);
-  if (dataString.indexOf("\"sugarcane\"") > 0) digitalWrite(PIN_SUGARCANE, HIGH);
-  if (dataString.indexOf("\"corn\"") > 0) digitalWrite(PIN_CORN, HIGH);
-  if (dataString.indexOf("\"potato\"") > 0) digitalWrite(PIN_POTATO, HIGH);
-  
-  // Grouping vegetable fields to one pin for simplicity
-  if (dataString.indexOf("\"cauliflower\"") > 0 || dataString.indexOf("\"cabbage\"") > 0 || dataString.indexOf("\"capsicum\"") > 0 || dataString.indexOf("\"brinjal\"") > 0 || dataString.indexOf("\"chilli\"") > 0) {
+
+  if (dataString.indexOf("\"productLed\":\"gainexa\"") > 0)
+    digitalWrite(PIN_GAINEXA, HIGH);
+  if (dataString.indexOf("\"productLed\":\"centurion\"") > 0)
+    digitalWrite(PIN_CENTURION, HIGH);
+
+  if (dataString.indexOf("\"paddy\"") > 0)
+    digitalWrite(PIN_PADDY, HIGH);
+  if (dataString.indexOf("\"jute\"") > 0)
+    digitalWrite(PIN_JUTE, HIGH);
+  if (dataString.indexOf("\"sugarcane\"") > 0)
+    digitalWrite(PIN_SUGARCANE, HIGH);
+  if (dataString.indexOf("\"corn\"") > 0)
+    digitalWrite(PIN_CORN, HIGH);
+  if (dataString.indexOf("\"potato\"") > 0)
+    digitalWrite(PIN_POTATO, HIGH);
+
+  if (dataString.indexOf("\"cauliflower\"") > 0 ||
+      dataString.indexOf("\"cabbage\"") > 0 ||
+      dataString.indexOf("\"capsicum\"") > 0 ||
+      dataString.indexOf("\"brinjal\"") > 0 ||
+      dataString.indexOf("\"chilli\"") > 0) {
     digitalWrite(PIN_VEGETABLE, HIGH);
   }
+
+  // Send status back to server
+  webSocket.emit("hardwareStatus", payload);
 }
 
 void turnOffAllLeds() {
@@ -102,7 +104,6 @@ void turnOffAllLeds() {
   digitalWrite(PIN_SUGARCANE, LOW);
   digitalWrite(PIN_CORN, LOW);
   digitalWrite(PIN_POTATO, LOW);
-  
   digitalWrite(PIN_GAINEXA, LOW);
   digitalWrite(PIN_CENTURION, LOW);
 }

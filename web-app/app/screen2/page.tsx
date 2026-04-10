@@ -8,6 +8,7 @@ let socket: Socket;
 
 export default function Screen2() {
   const [activeProduct, setActiveProduct] = useState<IProduct | null>(null);
+  const [liveHardwareStatus, setLiveHardwareStatus] = useState<any>(null);
 
   useEffect(() => {
     socket = io();
@@ -21,6 +22,16 @@ export default function Screen2() {
 
     socket.on('productChanged', (product) => {
       setActiveProduct(product);
+    });
+
+    socket.on('liveHardwareStatus', (status) => {
+      // Parse status if it's a string (ESP32 might send it as a string)
+      try {
+        const parsed = typeof status === 'string' ? JSON.parse(status) : status;
+        setLiveHardwareStatus(parsed);
+      } catch (e) {
+        console.error('Failed to parse hardware status', e);
+      }
     });
 
     return () => {
@@ -41,7 +52,6 @@ export default function Screen2() {
         <h1 className="text-gradient" style={{ fontSize: '3rem' }}>{activeProduct.name} Analytics</h1>
         <div className="s1-subtitle">Sales & Market Projections</div>
       </div>
-      
       <div className="chart-container">
         <div className="bar-wrapper">
           <div className="bar" style={{ height: getHeight(activeProduct.y25) }}>
@@ -64,6 +74,30 @@ export default function Screen2() {
           <div className="bar-label">Aspiration</div>
         </div>
       </div>
+
+      {/* Live Hardware Status Section */}
+      <div className="glass-panel" style={{ marginTop: '4rem', padding: '1.5rem 3rem', width: '100%', maxWidth: '900px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+           <h2 style={{ fontSize: '1.5rem', color: 'var(--text-muted)' }}>Live Diorama Status</h2>
+           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div className={`status-dot ${liveHardwareStatus ? 'active' : ''}`}></div>
+              <span style={{ fontSize: '0.9rem' }}>{liveHardwareStatus ? 'Hardware Connected' : 'Waiting for Hardware...'}</span>
+           </div>
+        </div>
+        
+        <div className="status-grid">
+           {['paddy', 'jute', 'corn', 'potato', 'sugarcane', 'cauliflower', 'cabbage', 'brinjal', 'chilli', 'capsicum'].map(field => {
+             const isActive = liveHardwareStatus?.fieldLeds?.includes(field);
+             return (
+               <div key={field} className={`status-item ${isActive ? 'active' : ''}`}>
+                 <div className="indicator-box"></div>
+                 <span style={{ textTransform: 'capitalize' }}>{field}</span>
+               </div>
+             );
+           })}
+        </div>
+      </div>
+
     </div>
   );
 }
