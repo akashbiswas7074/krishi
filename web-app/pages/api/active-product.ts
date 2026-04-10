@@ -17,7 +17,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           id: activeProduct.id,
           name: activeProduct.name,
           crops: activeProduct.crops,
-          fields: activeProduct.fields
+          fields: activeProduct.fields,
+          y25: activeProduct.y25,
+          y26: activeProduct.y26,
+          aspiration: activeProduct.aspiration
         } 
       });
     } catch (error) {
