@@ -27,7 +27,20 @@ export default function Dashboard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
 
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch('/api/products');
+      if (res.ok) {
+        const data = await res.json();
+        setProducts(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch products via HTTP', err);
+    }
+  };
+
   useEffect(() => {
+    fetchProducts();
     socket = io();
 
     socket.on('initialData', (data) => {

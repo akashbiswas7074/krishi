@@ -3,12 +3,18 @@ import dbConnect from '@/lib/mongodb';
 import Product from '@/models/Product';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST' && req.method !== 'DELETE') {
+  if (req.method !== 'GET' && req.method !== 'POST' && req.method !== 'DELETE') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
     await dbConnect();
+
+    if (req.method === 'GET') {
+      const products = await Product.find({}).lean();
+      const mapped = products.map(p => ({ ...p, _id: (p._id as any).toString() }));
+      return res.status(200).json(mapped);
+    }
 
     if (req.method === 'DELETE') {
       const { id } = req.body;
