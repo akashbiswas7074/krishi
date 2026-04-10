@@ -9,6 +9,7 @@ export interface IProduct extends Document {
   aspiration: number;
   fields: string[];
   imageUrl: string | null;
+  isActive: boolean;
 }
 
 const ProductSchema: Schema = new mongoose.Schema({
@@ -47,6 +48,10 @@ const ProductSchema: Schema = new mongoose.Schema({
   imageUrl: {
     type: String,
     default: null,
+  },
+  isActive: {
+    type: Boolean,
+    default: false,
   }
 }, {
   timestamps: true

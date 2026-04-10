@@ -1,41 +1,39 @@
-#include <SocketIoClient.h>
 #include <WiFi.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include <ArduinoJson.h>
 
-const char *ssid = "jharnais A 15";
-const char *password = "12345678";
+const char* ssid = "jharnais A 15";
+const char* password = "1234567";
 
-// IP Address of the computer running the Node.js backend
-char host[] = "10.29.56.42";
-int port = 3000;
-
-SocketIoClient webSocket;
+// The Vercel URL for fetching the active product
+const char* serverUrl = "https://krishi-zxek.vercel.app/api/active-product";
 
 // --- PIN DEFINITIONS ---
-// Define the GPIO pins for each field/crop LED relay
 const int PIN_PADDY = 2;
 const int PIN_JUTE = 4;
-const int PIN_VEGETABLE = 5; // Cabbage, Cauliflower, Capsicum, Brinjal, Chilli
+const int PIN_VEGETABLE = 5; 
 const int PIN_SUGARCANE = 18;
 const int PIN_CORN = 19;
 const int PIN_POTATO = 21;
-
-// Define the GPIO pins for the products in the idol's hand
 const int PIN_GAINEXA = 22;
 const int PIN_CENTURION = 23;
 
+unsigned long lastUpdate = 0;
+const unsigned long updateInterval = 5000; // Poll every 5 seconds
+
 void setup() {
   Serial.begin(115200);
-
+  
   pinMode(PIN_PADDY, OUTPUT);
   pinMode(PIN_JUTE, OUTPUT);
   pinMode(PIN_VEGETABLE, OUTPUT);
   pinMode(PIN_SUGARCANE, OUTPUT);
   pinMode(PIN_CORN, OUTPUT);
   pinMode(PIN_POTATO, OUTPUT);
-
   pinMode(PIN_GAINEXA, OUTPUT);
   pinMode(PIN_CENTURION, OUTPUT);
-
+  
   turnOffAllLeds();
 
   Serial.print("Connecting to ");
@@ -45,56 +43,79 @@ void setup() {
     delay(500);
     Serial.print(".");
   }
-  webSocket.on("connect", [](const char * payload, size_t length) {
-    Serial.println("Connected to server!");
-  });
-
-  webSocket.on("disconnect", [](const char * payload, size_t length) {
-    Serial.println("Disconnected from server!");
-  });
-
-  webSocket.on("hardwareCommand", handleHardwareCommand);
-  
-  // Connect to the Node.js server
-  // /socket.io/?EIO=4 is usually required for Socket.IO v3/v4
-  webSocket.begin(host, port, "/socket.io/?EIO=4");
+  Serial.println("\nWiFi connected.");
 }
 
-void loop() { webSocket.loop(); }
+void loop() {
+  unsigned long currentMillis = millis();
+  if (currentMillis - lastUpdate >= updateInterval) {
+    lastUpdate = currentMillis;
+    fetchActiveProduct();
+  }
+}
 
-void handleHardwareCommand(const char *payload, size_t length) {
-  Serial.printf("Received Hardware Command: %s\n", payload);
+void fetchActiveProduct() {
+  WiFiClientSecure client;
+  client.setInsecure(); // Skip certificate verification for simplicity
+
+  HTTPClient http;
+  Serial.print("[HTTP] Fetching from: ");
+  Serial.println(serverUrl);
+
+  if (http.begin(client, serverUrl)) {
+    int httpCode = http.GET();
+    if (httpCode > 0) {
+      if (httpCode == HTTP_CODE_OK) {
+        String payload = http.getString();
+        Serial.println("[HTTP] Received: " + payload);
+        handleStatusResponse(payload);
+      }
+    } else {
+      Serial.printf("[HTTP] GET failed, error: %s\n", http.errorToString(httpCode).c_str());
+    }
+    http.end();
+  }
+}
+
+void handleStatusResponse(String json) {
+  DynamicJsonDocument doc(1024);
+  DeserializationError error = deserializeJson(doc, json);
+
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    return;
+  }
+
+  const char* status = doc["status"];
+  if (String(status) != "active") {
+    turnOffAllLeds();
+    return;
+  }
+
+  JsonObject activeProduct = doc["activeProduct"];
+  const char* productId = activeProduct["id"];
+  JsonArray fields = activeProduct["fields"];
 
   turnOffAllLeds();
 
-  String dataString = String(payload);
+  // Toggle Product LED
+  if (String(productId) == "gainexa") digitalWrite(PIN_GAINEXA, HIGH);
+  if (String(productId) == "centurion") digitalWrite(PIN_CENTURION, HIGH);
 
-  if (dataString.indexOf("\"productLed\":\"gainexa\"") > 0)
-    digitalWrite(PIN_GAINEXA, HIGH);
-  if (dataString.indexOf("\"productLed\":\"centurion\"") > 0)
-    digitalWrite(PIN_CENTURION, HIGH);
-
-  if (dataString.indexOf("\"paddy\"") > 0)
-    digitalWrite(PIN_PADDY, HIGH);
-  if (dataString.indexOf("\"jute\"") > 0)
-    digitalWrite(PIN_JUTE, HIGH);
-  if (dataString.indexOf("\"sugarcane\"") > 0)
-    digitalWrite(PIN_SUGARCANE, HIGH);
-  if (dataString.indexOf("\"corn\"") > 0)
-    digitalWrite(PIN_CORN, HIGH);
-  if (dataString.indexOf("\"potato\"") > 0)
-    digitalWrite(PIN_POTATO, HIGH);
-
-  if (dataString.indexOf("\"cauliflower\"") > 0 ||
-      dataString.indexOf("\"cabbage\"") > 0 ||
-      dataString.indexOf("\"capsicum\"") > 0 ||
-      dataString.indexOf("\"brinjal\"") > 0 ||
-      dataString.indexOf("\"chilli\"") > 0) {
-    digitalWrite(PIN_VEGETABLE, HIGH);
+  // Toggle Field LEDs
+  for (String field : fields) {
+    if (field == "paddy") digitalWrite(PIN_PADDY, HIGH);
+    if (field == "jute") digitalWrite(PIN_JUTE, HIGH);
+    if (field == "sugarcane") digitalWrite(PIN_SUGARCANE, HIGH);
+    if (field == "corn") digitalWrite(PIN_CORN, HIGH);
+    if (field == "potato") digitalWrite(PIN_POTATO, HIGH);
+    
+    // Vegetable grouping
+    if (field == "cauliflower" || field == "cabbage" || field == "capsicum" || field == "brinjal" || field == "chilli") {
+      digitalWrite(PIN_VEGETABLE, HIGH);
+    }
   }
-
-  // Send status back to server
-  webSocket.emit("hardwareStatus", payload);
 }
 
 void turnOffAllLeds() {

@@ -51,8 +51,20 @@ export default function Dashboard() {
     };
   }, []);
 
-  const selectProduct = (id: string) => {
-    socket.emit('selectProduct', id);
+  const selectProduct = async (id: string) => {
+    if (socket && socket.connected) {
+      socket.emit('selectProduct', id);
+    }
+    
+    try {
+      await fetch('/api/active-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+    } catch (err) {
+      console.error('Failed to sync active product to DB:', err);
+    }
   };
 
   const handleEdit = (e: React.MouseEvent, p: IProduct) => {
