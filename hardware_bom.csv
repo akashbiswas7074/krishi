@@ -1,0 +1,11 @@
+Component,Quantity,Purpose,Estimated Price (INR),Estimated Price (USD)
+"ESP32 Development Board (38-pin or 30-pin)","1","Connects to Wi-Fi to receive Socket.io commands and triggers the relays","450","5.50"
+"8-Channel or 16-Channel 5V Relay Module","1","Acts as switches. Microcontrollers can't provide enough current for LED strips directly.","850","10.00"
+"5V LED Strip (SMD 5050 Green/White)","10 Meters","To illuminate the various farming fields in the diorama. Cut to required lengths.","900","11.00"
+"5mm or 10mm Diffused LEDs","1 Pack (100pcs)","Small individual LED bulbs placed inside the hands of the idol to light up products.","100","1.25"
+"Resistors (220 Ohm)","1 Pack (100pcs)","Required in series with the small 5mm idol LEDs to prevent them from burning out.","50","0.60"
+"5V 10A DC Power Supply (SMPS)","1","Provides enough heavy electrical current to cleanly power all the LED strips simultaneously without flickering.","700","8.50"
+"Jumper Wires (Dupont)","120-pack","Male-to-Female and Female-to-Female wires for connecting the ESP32 to the Relay Module.","180","2.20"
+"Insulated Copper Wire (Hook-up Wire)","1 Roll","For wiring the power supply to the LED strips spread across the large diorama layout.","200","2.50"
+"Breadboard (Optional)","1","To easily distribute power and ground wiring among the single LEDs.","100","1.25"
+"TOTAL",,"","3530","42.80"
