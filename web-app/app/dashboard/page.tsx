@@ -30,6 +30,11 @@ export default function Dashboard() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const fetchProducts = async () => {
     try {
@@ -90,18 +95,27 @@ export default function Dashboard() {
   const toggleActiveProduct = async (p: IProduct) => {
     const newStatus = !p.isActive;
     try {
-      await fetch('/api/products', {
+      const res = await fetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...p, isActive: newStatus })
       });
-      if (socket) socket.emit('productsUpdated');
+      if (res.ok) {
+        // Update local state immediately for Vercel/Serverless support
+        setProducts(prev => prev.map(prod => prod.id === p.id ? { ...prod, isActive: newStatus } : prod) as any);
+        if (socket) socket.emit('productsUpdated');
+      }
     } catch (err) {
       console.error('Failed to toggle product status:', err);
+      alert("Failed to update status. Please check your connection.");
     }
   };
 
   const selectProduct = async (id: string) => {
+    // Optimistically update local active product for instant feedback (Vercel support)
+    const selected = products.find(p => p.id === id);
+    if (selected) setActiveProduct(selected);
+
     if (socket && socket.connected) {
       socket.emit('selectProduct', id);
     }
@@ -225,6 +239,8 @@ export default function Dashboard() {
       setIsSubmitting(false);
     }
   };
+
+  if (!mounted) return null;
 
   return (
     <div className="dashboard-container fade-in">
