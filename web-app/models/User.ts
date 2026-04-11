@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 export interface IUser extends Document {
   username: string;
   password?: string;
+  role?: 'admin' | 'user';
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 

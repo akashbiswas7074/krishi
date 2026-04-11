@@ -8,7 +8,7 @@ import { authOptions } from "../auth/[...nextauth]";
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions as any);
 
-  if (!session || (session.user as any).role !== 'admin') {
+  if (!session || (session as any).user?.role !== 'admin') {
     return res.status(403).json({ error: 'Access denied. Admins only.' });
   }
 
