@@ -44,23 +44,23 @@ app.prepare().then(async () => {
 
   let activeProductId: string | null = null;
   let cycleInterval: NodeJS.Timeout | null = null;
+  let isSlideshowActive = true;
 
   const startRotation = async () => {
     if (cycleInterval) {
-      console.log('[Rotation] Resetting current interval.');
       clearInterval(cycleInterval);
     }
     
     cycleInterval = setInterval(async () => {
+      // If slideshow is paused, do nothing
+      if (!isSlideshowActive) return;
+
       try {
         const products = await Product.find({ isActive: true }).lean();
         const activeIds = products.map(p => p.id);
         
-        console.log(`[Rotation] Active (${products.length}): ${activeIds.join(', ')}`);
-        
         if (products.length === 0) {
           if (activeProductId !== null) {
-            console.log(`[Rotation] No active products. Going to IDLE.`);
             activeProductId = null;
             io.emit('productChanged', null);
           }
@@ -111,6 +111,7 @@ app.prepare().then(async () => {
     }
 
     socket.on('selectProduct', async (productId: string) => {
+      isSlideshowActive = false;
       activeProductId = productId;
       try {
         const product: any = await Product.findOne({ id: productId }).lean();
@@ -136,7 +137,13 @@ app.prepare().then(async () => {
        const mappedProducts = products.map(p => ({...p, _id: p._id.toString()}));
        io.emit('productsUpdated', mappedProducts);
        // Refresh rotation to include any new items
-       startRotation();
+       if (isSlideshowActive) startRotation();
+    });
+
+    socket.on('resumeSlideshow', () => {
+      isSlideshowActive = true;
+      io.emit('slideshowStatus', true);
+      startRotation();
     });
     
     socket.on('hardwareStatus', (status) => {

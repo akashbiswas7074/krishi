@@ -30,7 +30,9 @@ export default function Dashboard() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [isSlideshowActive, setIsSlideshowActive] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [hardwareStatus, setHardwareStatus] = useState<any>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -62,29 +64,57 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    fetchProducts();
-    socket = io();
-
-    socket.on('initialData', (data) => {
-      setProducts(data.products);
-      if(data.activeProductId) {
-        const found = data.products.find((p: any) => p.id === data.activeProductId);
-        setActiveProduct(found || null);
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch('/api/active-product');
+        if (res.ok) {
+          const data = await res.json();
+          setIsSlideshowActive(data.isSlideshowActive);
+          if (data.status === 'fixed' && data.focusedProduct) {
+            setActiveProduct(data.focusedProduct);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch slideshow status', err);
       }
-    });
+    };
 
-    socket.on('productsUpdated', (updatedProducts) => {
-      setProducts(updatedProducts);
-    });
+    fetchProducts();
+    fetchStatus();
 
-    socket.on('productChanged', (product) => {
-      setActiveProduct(product);
-    });
+    // Socket.io only works in local / custom server environment
+    if (window.location.hostname === 'localhost') {
+      socket = io();
+
+      socket.on('initialData', (data) => {
+        setProducts(data.products);
+        if(data.activeProductId) {
+          const found = data.products.find((p: any) => p.id === data.activeProductId);
+          setActiveProduct(found || null);
+        }
+      });
+
+      socket.on('productsUpdated', (updatedProducts) => {
+        setProducts(updatedProducts);
+      });
+
+      socket.on('productChanged', (product) => {
+        setActiveProduct(product);
+      });
+
+      socket.on('slideshowStatus', (status) => {
+        setIsSlideshowActive(status);
+      });
+
+      socket.on('liveHardwareStatus', (status) => {
+        setHardwareStatus(status);
+      });
+    }
 
     return () => {
-      socket?.disconnect();
+      if (socket) socket.disconnect();
     };
-  }, []);
+  }, [tab, isAdmin]);
 
   useEffect(() => {
     if (tab === 'admin_manage' && isAdmin) {
@@ -114,7 +144,10 @@ export default function Dashboard() {
   const selectProduct = async (id: string) => {
     // Optimistically update local active product for instant feedback (Vercel support)
     const selected = products.find(p => p.id === id);
-    if (selected) setActiveProduct(selected);
+    if (selected) {
+      setActiveProduct(selected);
+      setIsSlideshowActive(false); // Lock the view
+    }
 
     if (socket && socket.connected) {
       socket.emit('selectProduct', id);
@@ -127,6 +160,20 @@ export default function Dashboard() {
       });
     } catch (err) {
       console.error('Failed to sync active product to DB:', err);
+    }
+  };
+
+  const resumeSlideshow = async () => {
+    setIsSlideshowActive(true);
+    try {
+      await fetch('/api/active-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resume' })
+      });
+      if (socket) socket.emit('resumeSlideshow'); // Specific resume signal for local server
+    } catch (err) {
+      console.error('Failed to resume slideshow:', err);
     }
   };
 
@@ -254,12 +301,24 @@ export default function Dashboard() {
         </div>
       </div>
       
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', alignItems: 'center', flexWrap: 'wrap' }}>
         <button className="btn" style={{ background: tab==='control' ? 'var(--accent)' : 'transparent', border: '1px solid var(--glass-border)' }} onClick={() => setTab('control')}>Control Screens</button>
         <button className="btn" style={{ background: tab==='admin' ? 'var(--accent)' : 'transparent', border: '1px solid var(--glass-border)' }} onClick={() => setTab('admin')}>Add Product</button>
         {isAdmin && (
           <button className="btn" style={{ background: tab==='admin_manage' ? 'var(--accent)' : 'transparent', border: '1px solid var(--glass-border)' }} onClick={() => setTab('admin_manage')}>Admin Manage</button>
         )}
+        
+        <button 
+          className="btn" 
+          style={{ 
+            background: isSlideshowActive ? 'var(--success)' : 'transparent',
+            border: isSlideshowActive ? 'none' : '1px solid var(--accent)',
+            marginLeft: 'auto'
+          }}
+          onClick={resumeSlideshow}
+        >
+          {isSlideshowActive ? '● Slideshow: ON' : '▶ Resume Slideshow'}
+        </button>
       </div>
 
       {tab === 'control' && (

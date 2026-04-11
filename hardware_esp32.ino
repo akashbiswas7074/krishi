@@ -20,13 +20,13 @@ const char *bitmapApiUrl = "https://krishi-zxek.vercel.app/api/product-bitmap?id
 
 // --- PIN CONFIG (ESP32-S3) ---
 #define TFT_SCK 12
-#define TFT_MOSI 43 // Moved from 11
+#define TFT_MOSI 43 
 #define TFT_MISO 13
 
 // Screen 1 (Image)
-#define TFT_CS1 44  // Moved from 10
-#define TFT_DC1 21  // Moved from 9
-#define TFT_RST1 45 // Moved from 8
+#define TFT_CS1 44  
+#define TFT_DC1 21  
+#define TFT_RST1 45 
 
 // Screen 2 (Details)
 #define TFT_CS2 14
@@ -53,17 +53,22 @@ struct ProductData {
   int ledPin;
 };
 
-std::vector<ProductData> localProducts;
+std::vector<ProductData> activeProducts; // Only those with isActive: true from server
 
 // --- STATE TRACKING ---
 int lastDynamicLedPin = -1;
-unsigned long lastUpdate = 0;
-const unsigned long updateInterval = 3000;
+unsigned long lastStatusUpdate = 0;
+unsigned long lastSlideshowStep = 0;
+const unsigned long statusInterval = 5000;    // Check web server every 5 seconds
+const unsigned long slideshowInterval = 10000; // Change product every 10 seconds in auto mode
+
 String currentLoadedImageId = "";
+String focusedProductId = "";
+bool isSlideshowActive = true;
+int slideshowIndex = 0;
 bool isSyncing = false;
 
 // --- JPEG CALLBACK ---
-// This function renders JPEG blocks to the active TFT
 bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t* bitmap) {
   if (y >= tft1.height()) return false;
   tft1.drawRGBBitmap(x, y, bitmap, w, h);
@@ -73,29 +78,25 @@ bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t* bitmap) 
 void setup() {
   Serial.begin(115200);
 
-  // Initialize LittleFS
   if (!LittleFS.begin(true)) {
     Serial.println("LittleFS Mount Failed");
   }
 
-  // Initialize SPI
   SPI.begin(TFT_SCK, TFT_MISO, TFT_MOSI);
 
-  // Initialize both screens
   tft1.begin();
   tft1.setRotation(1);
-  tft1.fillScreen(ILI9341_WHITE); // White background for image screen
+  tft1.fillScreen(ILI9341_WHITE);
 
   tft2.begin();
   tft2.setRotation(1);
-  tft2.fillScreen(ILI9341_BLACK); // Black background for details screen
+  tft2.fillScreen(ILI9341_BLACK);
 
-  // Setup JPEG Decoder
   TJpgDec.setJpgScale(1);
   TJpgDec.setCallback(tft_output);
 
   connectToWifi();
-  syncAllData(); // Full Sync on startup
+  syncAllData(); 
 }
 
 void loop() {
@@ -104,21 +105,41 @@ void loop() {
   }
 
   unsigned long currentMillis = millis();
-  if (currentMillis - lastUpdate >= updateInterval && !isSyncing) {
-    lastUpdate = currentMillis;
-    fetchActiveProductId(); // Now we only fetch the ID
+
+  // 1. POLLING WEB STATUS (Every 5s)
+  if (currentMillis - lastStatusUpdate >= statusInterval && !isSyncing) {
+    lastStatusUpdate = currentMillis;
+    fetchServerStatus(); 
+  }
+
+  // 2. DISPLAY LOGIC
+  if (isSlideshowActive) {
+    // SLIDESHOW MODE: Cycle through activeProducts list
+    if (activeProducts.size() > 0) {
+      if (currentMillis - lastSlideshowStep >= slideshowInterval) {
+        lastSlideshowStep = currentMillis;
+        slideshowIndex = (slideshowIndex + 1) % activeProducts.size();
+        displayProduct(activeProducts[slideshowIndex]);
+      }
+    } else {
+      showWaitingScreen();
+    }
+  } else {
+    // FIXED MODE: Show ONLY focusedProductId
+    if (focusedProductId != "" && currentLoadedImageId != focusedProductId) {
+      for (auto &p : activeProducts) {
+        if (p.id == focusedProductId) {
+          displayProduct(p);
+          break;
+        }
+      }
+    }
   }
 }
 
 void connectToWifi() {
   Serial.print("Connecting to ");
   Serial.println(ssid);
-  
-  // Robust Reset for ESP32-S3 WiFi
-  WiFi.disconnect(true);
-  delay(100);
-  WiFi.mode(WIFI_STA);
-  WiFi.setAutoReconnect(true);
   WiFi.begin(ssid, password);
 
   tft2.fillScreen(ILI9341_BLACK);
@@ -126,41 +147,20 @@ void connectToWifi() {
   tft2.setTextColor(ILI9341_WHITE);
   tft2.setTextSize(2);
   tft2.println("Connecting WiFi...");
-  tft2.setCursor(20, 130);
-  tft2.setTextSize(1);
-  tft2.print("SSID: "); tft2.println(ssid);
 
   int counter = 0;
-  // Increase timeout to 20 seconds (40 * 500ms)
-  while (WiFi.status() != WL_CONNECTED && counter < 40) {
+  while (WiFi.status() != WL_CONNECTED && counter < 20) {
     delay(500);
     Serial.print(".");
-    tft2.print(".");
     counter++;
   }
 
-  tft2.setTextSize(2);
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nWiFi connected.");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
-    
-    tft2.fillRect(0, 160, 320, 80, ILI9341_BLACK);
-    tft2.setCursor(20, 170);
+    tft2.fillScreen(ILI9341_BLACK);
+    tft2.setCursor(20, 100);
     tft2.setTextColor(KRISHI_GREEN);
     tft2.println("CONNECTED!");
-    tft2.setTextColor(ILI9341_WHITE);
-    tft2.setTextSize(1);
-    tft2.print("IP: "); tft2.println(WiFi.localIP().toString());
-    delay(2000);
-  } else {
-    Serial.println("\nWiFi connection FAILED.");
-    tft2.setTextColor(ILI9341_RED);
-    tft2.setCursor(20, 170);
-    tft2.println("FAILED!");
-    tft2.setTextSize(1);
-    tft2.println("Check SSID/PASS or Signal");
-    delay(3000);
+    delay(1000);
   }
 }
 
@@ -180,65 +180,47 @@ void syncAllData() {
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
       String payload = http.getString();
-      DynamicJsonDocument doc(32768); // Increased from 16384 to 32768 to handle larger datasets
-      DeserializationError error = deserializeJson(doc, payload);
+      DynamicJsonDocument doc(32768); 
+      deserializeJson(doc, payload);
       
-      if (!error) {
-        JsonArray arr = doc.as<JsonArray>();
-        localProducts.clear();
+      JsonArray arr = doc.as<JsonArray>();
+      activeProducts.clear();
+      
+      for (JsonObject p : arr) {
+        if (!p["isActive"]) continue; // Only sync active ones for display memory efficiency
+
+        ProductData prod;
+        prod.id = p["id"].as<String>();
+        prod.name = p["name"].as<String>();
+        prod.crops = p["crops"].as<String>();
+        prod.y25 = p["y25"];
+        prod.y26 = p["y26"];
+        prod.aspiration = p["aspiration"];
+        prod.unit = p["unit"].as<String>() | "Kg";
+        prod.ledPin = p["ledPin"] | 2;
         
-        int total = arr.size();
-        int current = 0;
-        
-        for (JsonObject p : arr) {
-          ProductData prod;
-          prod.id = p["id"].as<String>();
-          prod.name = p["name"].as<String>();
-          prod.crops = p["crops"].as<String>();
-          prod.y25 = p["y25"];
-          prod.y26 = p["y26"];
-          prod.aspiration = p["aspiration"];
-          prod.unit = p["unit"].as<String>() | "Kg";
-          prod.ledPin = p["ledPin"] | 2;
-          
-          localProducts.push_back(prod);
-          Serial.print("Synced: "); Serial.print(prod.name); 
-          Serial.print(" (Target: "); Serial.print(prod.aspiration); Serial.println(")");
-          
-          // Progress UI
-          current++;
-          tft2.fillRect(0, 120, 320, 40, ILI9341_BLACK);
-          tft2.setCursor(20, 130);
-          tft2.print("Downloading: "); tft2.print(current); tft2.print("/"); tft2.print(total);
-          
-          // Download Image to LittleFS
-          downloadImageToFS(prod.id);
-        }
+        activeProducts.push_back(prod);
+        downloadImageToFS(prod.id);
       }
     }
     http.end();
   }
   isSyncing = false;
-  tft2.fillScreen(ILI9341_BLACK);
-  tft2.setCursor(20, 100);
-  tft2.println("SYNC COMPLETE!");
-  delay(1000);
+  
+  // Start with first product if in slideshow
+  if (activeProducts.size() > 0) {
+    displayProduct(activeProducts[0]);
+  }
 }
 
 void downloadImageToFS(String id) {
   String filename = "/" + id + ".jpg";
-  
-  // Check if file already exists
-  if (LittleFS.exists(filename)) {
-    Serial.println("Image " + id + " already exists. Skipping.");
-    return;
-  }
+  if (LittleFS.exists(filename)) return;
 
   String url = String(bitmapApiUrl) + id;
   WiFiClientSecure client;
   client.setInsecure();
   HTTPClient http;
-  
   if (http.begin(client, url)) {
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
@@ -246,159 +228,110 @@ void downloadImageToFS(String id) {
       if (file) {
         http.writeToStream(&file);
         file.close();
-        Serial.println("Saved " + filename);
       }
     }
     http.end();
   }
 }
 
-void fetchActiveProductId() {
+void fetchServerStatus() {
   WiFiClientSecure client;
   client.setInsecure();
-
   HTTPClient http;
   if (http.begin(client, serverUrl)) {
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
       String payload = http.getString();
-      DynamicJsonDocument doc(1024);
+      DynamicJsonDocument doc(2048);
       deserializeJson(doc, payload);
       
-      const char *status = doc["status"];
-      if (String(status) != "active") {
-        turnOffAllLeds();
-        showWaitingScreen();
-        return;
+      bool remoteSlideshowStatus = doc["isSlideshowActive"];
+      const char* remoteFocusedId = doc["focusedProductId"];
+
+      // Detect Mode Change
+      if (isSlideshowActive != remoteSlideshowStatus) {
+        isSlideshowActive = remoteSlideshowStatus;
+        Serial.print("Mode Changed: "); Serial.println(isSlideshowActive ? "SLIDESHOW" : "FIXED");
       }
 
-      const char *productId = doc["activeProduct"]["id"];
-      handleLocalProductChange(productId);
+      if (!isSlideshowActive) {
+        focusedProductId = String(remoteFocusedId);
+      } else {
+        focusedProductId = "";
+      }
     }
     http.end();
   }
 }
 
-void handleLocalProductChange(const char* id) {
-  // Find in local array
-  ProductData* found = nullptr;
-  for (int i = 0; i < localProducts.size(); i++) {
-    if (localProducts[i].id == String(id)) {
-      found = &localProducts[i];
-      break;
-    }
-  }
+void displayProduct(ProductData p) {
+  if (currentLoadedImageId == p.id) return; // Prevent flicker
 
-  if (!found) {
-    Serial.println("Active product ID not found in local sync data!");
-    return;
-  }
-
+  Serial.print("Displaying: "); Serial.println(p.name);
   turnOffAllLeds();
 
-  // Update Screen 2 (Details) from local memory
-  updateScreen2(found->name.c_str(), found->crops.c_str(), found->y25, found->y26, found->aspiration, found->unit.c_str());
+  // Update Screen 2
+  updateScreen2(p.name.c_str(), p.crops.c_str(), p.y25, p.y26, p.aspiration, p.unit.c_str());
 
-  // Update Screen 1 (Image) from LittleFS
-  if (currentLoadedImageId != String(id)) {
-    drawLocalImage(id);
-    currentLoadedImageId = String(id);
-  }
+  // Update Screen 1
+  drawLocalImage(p.id.c_str());
+  currentLoadedImageId = p.id;
 
-  // LED Control
-  if (found->ledPin > 0) {
-    pinMode(found->ledPin, OUTPUT);
-    digitalWrite(found->ledPin, HIGH);
-    lastDynamicLedPin = found->ledPin;
+  // LED
+  if (p.ledPin > 0) {
+    pinMode(p.ledPin, OUTPUT);
+    digitalWrite(p.ledPin, HIGH);
+    lastDynamicLedPin = p.ledPin;
   }
 }
 
 void drawLocalImage(const char* id) {
   String filename = "/" + String(id) + ".jpg";
-  if (!LittleFS.exists(filename)) {
-    Serial.println("Local image " + filename + " missing!");
-    return;
-  }
+  if (!LittleFS.exists(filename)) return;
 
-  // Draw to Screen 1
   digitalWrite(TFT_CS1, LOW);
   digitalWrite(TFT_CS2, HIGH); 
-  
-  tft1.fillScreen(ILI9341_WHITE); // Clear with white before drawing image
+  tft1.fillScreen(ILI9341_WHITE);
   TJpgDec.drawFsJpg(0, 0, filename);
-  
   digitalWrite(TFT_CS1, HIGH);
-}
-
-// Helper to format numbers with commas
-String formatNum(int n) {
-  String out = String(n);
-  if (n < 1000) return out;
-  if (n < 1000000) {
-    int k = n / 1000;
-    int r = n % 1000;
-    char buf[10];
-    sprintf(buf, "%d,%03d", k, r);
-    return String(buf);
-  }
-  return out; // Handle larger if needed, but 999,999 is enough for now
 }
 
 void updateScreen2(const char *name, const char *crops, int y25, int y26, int asp, const char *unit) {
-  digitalWrite(TFT_CS1, HIGH);
-  digitalWrite(TFT_CS2, LOW); // Enable S2
-
-  // Cinematic Wipe Transition
-  for (int x = 0; x < 320; x += 32) { // Faster wipe for better sync
-    tft2.fillRect(x, 0, 32, 240, ILI9341_BLACK);
-    tft2.drawFastVLine(x + 32, 0, 240, KRISHI_GREEN);
-  }
+  digitalWrite(TFT_CS2, LOW);
+  tft2.fillScreen(ILI9341_BLACK);
   
-  // Header Panel
+  // Header
   tft2.fillRect(0, 0, 320, 50, KRISHI_DARK);
   tft2.setTextColor(ILI9341_WHITE);
-  
-  String nameStr = String(name);
-  if (nameStr.length() > 14) {
-    tft2.setTextSize(2);
-    tft2.setCursor(10, 15);
-  } else {
-    tft2.setTextSize(3);
-    tft2.setCursor(10, 12);
-  }
-  tft2.print(nameStr);
-
-  // Row 1: 2025-26 Sales
-  tft2.drawFastHLine(0, 90, 320, ILI9341_GREY);
-  tft2.setTextSize(2);
-  tft2.setTextColor(ILI9341_BLUE);
-  tft2.setCursor(10, 105);
-  tft2.print("2025-26 Sales:");
   tft2.setTextSize(3);
-  tft2.setTextColor(ILI9341_WHITE);
-  tft2.setCursor(10, 125);
-  tft2.print(formatNum(y25)); tft2.setTextSize(2); tft2.print(" "); tft2.print(unit);
+  tft2.setCursor(10, 12);
+  tft2.print(name);
 
-  // Row 2: 2026-2027 Sales (MATCHING EXCEL)
   tft2.setTextSize(2);
-  tft2.setTextColor(ILI9341_CYAN);
-  tft2.setCursor(10, 160);
-  tft2.print("2026-2027 Sales:");
-  tft2.setTextSize(3);
-  tft2.setTextColor(ILI9341_WHITE);
-  tft2.setCursor(10, 180);
-  tft2.print(formatNum(y26)); tft2.setTextSize(2); tft2.print(" "); tft2.print(unit);
-
-  // Row 3: Aspiration (Target) - REPOSITIONED FOR VISIBILITY
-  tft2.drawFastHLine(0, 200, 320, ILI9341_GREY);
-  tft2.setTextSize(2);
+  tft2.setCursor(10, 60);
   tft2.setTextColor(KRISHI_GREEN);
-  tft2.setCursor(10, 205);
-  tft2.print("ASPIRATION TARGET:");
-  tft2.setTextSize(3);
-  tft2.setCursor(10, 222); // Perfectly centered in bottom zone
-  tft2.print(formatNum(asp)); tft2.setTextSize(2); tft2.print(" "); tft2.print(unit);
+  tft2.print("Crops: "); tft2.print(crops);
 
+  tft2.setTextColor(ILI9341_BLUE);
+  tft2.setCursor(10, 100);
+  tft2.print("2025-26 Sales:");
+  tft2.setCursor(10, 120);
+  tft2.setTextColor(ILI9341_WHITE);
+  tft2.print(y25); tft2.print(" "); tft2.print(unit);
+
+  tft2.setTextColor(ILI9341_CYAN);
+  tft2.setCursor(10, 150);
+  tft2.print("2026-27 Sales:");
+  tft2.setCursor(10, 170);
+  tft2.setTextColor(ILI9341_WHITE);
+  tft2.print(y26); tft2.print(" "); tft2.print(unit);
+
+  tft2.setTextColor(KRISHI_GREEN);
+  tft2.setCursor(10, 200);
+  tft2.print("ASPIRATION TARGET:");
+  tft2.setCursor(10, 220);
+  tft2.print(asp); tft2.print(" "); tft2.print(unit);
+  
   digitalWrite(TFT_CS2, HIGH);
 }
 
@@ -407,7 +340,6 @@ void showWaitingScreen() {
   tft1.setCursor(40, 100);
   tft1.setTextSize(2);
   tft1.println("Waiting for Select...");
-  
   tft2.fillScreen(ILI9341_BLACK);
 }
 

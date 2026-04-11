@@ -1,52 +1,77 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import dbConnect from '@/lib/mongodb';
 import Product from '@/models/Product';
+import SystemConfig from '@/models/SystemConfig';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   await dbConnect();
 
+  // Ensure SysConfig exists
+  let config = await SystemConfig.findOne();
+  if (!config) {
+    config = await SystemConfig.create({ isSlideshowActive: true, focusedProductId: null });
+  }
+
   if (req.method === 'GET') {
     try {
-      const activeProduct = await Product.findOne({ isActive: true }).lean();
-      if (!activeProduct) {
-        return res.status(200).json({ status: 'idle', activeProduct: null });
+      const activeProducts = await Product.find({ isActive: true }).lean();
+      
+      let focusedProduct = null;
+      if (config.focusedProductId) {
+        focusedProduct = await Product.findOne({ id: config.focusedProductId }).lean();
       }
+
       return res.status(200).json({ 
-        status: 'active', 
-        activeProduct: {
-          id: activeProduct.id,
-          name: activeProduct.name,
-          crops: activeProduct.crops,
-          y25: activeProduct.y25,
-          y26: activeProduct.y26,
-          aspiration: activeProduct.aspiration,
-          ledPin: activeProduct.ledPin ?? 2,
-          unit: activeProduct.unit ?? 'Kg'
-        } 
+        status: config.isSlideshowActive ? 'slideshow' : 'fixed',
+        isSlideshowActive: config.isSlideshowActive,
+        focusedProductId: config.focusedProductId,
+        activeProducts: activeProducts.map(p => ({
+          id: p.id,
+          name: p.name,
+          crops: p.crops,
+          y25: p.y25,
+          y26: p.y26,
+          aspiration: p.aspiration,
+          ledPin: p.ledPin ?? 2,
+          unit: p.unit ?? 'Kg'
+        })),
+        focusedProduct: focusedProduct ? {
+          id: focusedProduct.id,
+          name: focusedProduct.name,
+          crops: focusedProduct.crops,
+          y25: focusedProduct.y25,
+          y26: focusedProduct.y26,
+          aspiration: focusedProduct.aspiration,
+          ledPin: focusedProduct.ledPin ?? 2,
+          unit: focusedProduct.unit ?? 'Kg'
+        } : null
       });
     } catch (error) {
-      return res.status(500).json({ error: 'Failed to fetch active product' });
+      return res.status(500).json({ error: 'Failed to fetch active products' });
     }
   }
 
   if (req.method === 'POST') {
-    const { id } = req.body;
-    if (!id) return res.status(400).json({ error: 'Product ID required' });
+    const { id, action } = req.body;
 
     try {
-      // 1. Reset logic removed to allow "Selective Slideshow" to function correctly.
-      // 2. Simply set the chosen product to active (Ensures it is part of the display rotation)
-      const updated = await Product.findOneAndUpdate(
-        { id },
-        { isActive: true },
-        { returnDocument: 'after' }
-      );
+      if (action === 'resume') {
+        config.isSlideshowActive = true;
+        config.focusedProductId = null;
+        await config.save();
+        return res.status(200).json({ message: 'Slideshow resumed', config });
+      }
 
-      if (!updated) return res.status(404).json({ error: 'Product not found' });
+      if (!id) return res.status(400).json({ error: 'Product ID required' });
 
-      return res.status(200).json({ message: 'Active product updated', product: updated });
+      // Lock on specific product
+      config.isSlideshowActive = false;
+      config.focusedProductId = id;
+      await config.save();
+
+      return res.status(200).json({ message: 'View locked on product', id });
     } catch (error) {
-      return res.status(500).json({ error: 'Failed to update active product' });
+      return res.status(500).json({ error: 'Failed to update configuration' });
     }
   }
 
