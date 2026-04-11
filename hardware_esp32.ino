@@ -20,20 +20,26 @@ const char *bitmapApiUrl = "https://krishi-zxek.vercel.app/api/product-bitmap?id
 
 // --- PIN CONFIG (ESP32-S3) ---
 #define TFT_SCK 12
-#define TFT_MOSI 11
+#define TFT_MOSI 43 // Moved from 11
 #define TFT_MISO 13
-#define TFT_DC 9
-#define TFT_RST 8
-#define TFT_CS1 10 // Image Screen
-#define TFT_CS2 14 // Details Screen
+
+// Screen 1 (Image)
+#define TFT_CS1 44  // Moved from 10
+#define TFT_DC1 21  // Moved from 9
+#define TFT_RST1 45 // Moved from 8
+
+// Screen 2 (Details)
+#define TFT_CS2 14
+#define TFT_DC2 17
+#define TFT_RST2 18
 
 // --- DISPLAY COLOR THEME ---
 #define KRISHI_GREEN 0x07E0
 #define KRISHI_DARK 0x18E3
 #define ILI9341_GREY 0x5AEB
 
-Adafruit_ILI9341 tft1 = Adafruit_ILI9341(TFT_CS1, TFT_DC, TFT_RST);
-Adafruit_ILI9341 tft2 = Adafruit_ILI9341(TFT_CS2, TFT_DC, TFT_RST);
+Adafruit_ILI9341 tft1 = Adafruit_ILI9341(TFT_CS1, TFT_DC1, TFT_RST1);
+Adafruit_ILI9341 tft2 = Adafruit_ILI9341(TFT_CS2, TFT_DC2, TFT_RST2);
 
 // --- DATA STRUCTURES ---
 struct ProductData {

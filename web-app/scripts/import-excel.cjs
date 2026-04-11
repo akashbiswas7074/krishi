@@ -47,7 +47,7 @@ async function run() {
 
     console.log(`Found ${itemsToImport.length} potential products to import.`);
 
-    const safePins = [1, 2, 3, 4, 5, 6, 7, 15, 16, 17, 18, 21, 38, 39, 40];
+    const safePins = [1, 2, 3, 4, 5, 15, 16, 19, 20, 38, 39, 40, 41, 42];
     let successCount = 0;
     
     for (let i = 0; i < itemsToImport.length; i++) {
