@@ -1,0 +1,24 @@
+[
+  {
+    "id": "gainexa",
+    "name": "Gainexa",
+    "crops": "Paddy, Jute, Corn",
+    "y25": 45,
+    "y26": 68,
+    "aspiration": 90,
+    "fields": ["paddy", "jute", "corn"],
+    "imageUrl": null,
+    "isActive": false
+  },
+  {
+    "id": "centurion",
+    "name": "Centurion",
+    "crops": "Potato, Sugarcane, Vegetables",
+    "y25": 38,
+    "y26": 55,
+    "aspiration": 85,
+    "fields": ["potato", "sugarcane", "cauliflower", "cabbage", "brinjal"],
+    "imageUrl": null,
+    "isActive": false
+  }
+]

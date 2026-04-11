@@ -1,84 +1,87 @@
-#include <WiFi.h>
-#include <HTTPClient.h>
-#include <WiFiClientSecure.h>
-#include <ArduinoJson.h>
-#include <Wire.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+#include <Adafruit_ILI9341.h>
+#include <ArduinoJson.h>
+#include <HTTPClient.h>
+#include <TJpg_Decoder.h>
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <SPI.h>
 
-const char* ssid = "jharnais A 15";
-const char* password = "1234567";
+// --- WIFI CONFIG ---
+const char *ssid = "jharnais A 15";
+const char *password = "12345678";
 
-// The Vercel URL for fetching the active product
-const char* serverUrl = "https://krishi-zxek.vercel.app/api/active-product";
+// The Vercel URL for fetching data
+const char *serverUrl = "https://krishi-zxek.vercel.app/api/active-product";
+const char *bitmapApiUrl = "https://krishi-zxek.vercel.app/api/product-bitmap?id=";
 
-// --- PIN DEFINITIONS ---
-const int PIN_PADDY = 2;
-const int PIN_JUTE = 4;
-const int PIN_VEGETABLE = 5; 
-const int PIN_SUGARCANE = 18;
-const int PIN_CORN = 19;
-const int PIN_POTATO = 25;   // MOVED from 21
-const int PIN_GAINEXA = 26;  // MOVED from 22
-const int PIN_CENTURION = 23;
+// --- PIN CONFIG (ESP32-S3) ---
+#define TFT_SCK 12
+#define TFT_MOSI 11
+#define TFT_MISO 13
+#define TFT_DC 9
+#define TFT_RST 8
+#define TFT_CS1 10 // Image Screen
+#define TFT_CS2 14 // Details Screen
 
-// --- DISPLAY SETTINGS ---
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
-#define OLED_RESET -1
-Adafruit_SSD1306 display1(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-Adafruit_SSD1306 display2(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+// --- DISPLAY COLOR THEME ---
+#define KRISHI_GREEN 0x07E0
+#define KRISHI_DARK 0x18E3
+#define ILI9341_GREY 0x5AEB
 
+Adafruit_ILI9341 tft1 = Adafruit_ILI9341(TFT_CS1, TFT_DC, TFT_RST);
+Adafruit_ILI9341 tft2 = Adafruit_ILI9341(TFT_CS2, TFT_DC, TFT_RST);
+
+// --- STATE TRACKING ---
+int lastDynamicLedPin = -1;
 unsigned long lastUpdate = 0;
-const unsigned long updateInterval = 5000; // Poll every 5 seconds
+const unsigned long updateInterval = 5000;
+String currentLoadedImageId = "";
+
+// --- JPEG CALLBACK ---
+// This function renders JPEG blocks to the active TFT
+bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t* bitmap) {
+  if (y >= tft1.height()) return false;
+  tft1.drawRGBBitmap(x, y, bitmap, w, h);
+  return true;
+}
 
 void setup() {
   Serial.begin(115200);
-  
-  pinMode(PIN_PADDY, OUTPUT);
-  pinMode(PIN_JUTE, OUTPUT);
-  pinMode(PIN_VEGETABLE, OUTPUT);
-  pinMode(PIN_SUGARCANE, OUTPUT);
-  pinMode(PIN_CORN, OUTPUT);
-  pinMode(PIN_POTATO, OUTPUT);
-  pinMode(PIN_GAINEXA, OUTPUT);
-  pinMode(PIN_CENTURION, OUTPUT);
-  
-  turnOffAllLeds();
 
-  // Initialize Screen 1 (Address 0x3C)
-  if(!display1.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    Serial.println(F("SSD1306 Screen 1 allocation failed"));
-  }
-  display1.clearDisplay();
-  display1.setTextColor(SSD1306_WHITE);
-  display1.setTextSize(1);
-  display1.setCursor(0,0);
-  display1.println("Screen 1: READY");
-  display1.display();
+  // Initialize SPI
+  SPI.begin(TFT_SCK, TFT_MISO, TFT_MOSI);
 
-  // Initialize Screen 2 (Address 0x3D)
-  if(!display2.begin(SSD1306_SWITCHCAPVCC, 0x3D)) {
-    Serial.println(F("SSD1306 Screen 2 allocation failed"));
-  }
-  display2.clearDisplay();
-  display2.setTextColor(SSD1306_WHITE);
-  display2.setTextSize(1);
-  display2.setCursor(0,0);
-  display2.println("Screen 2: READY");
-  display2.display();
+  // Initialize both screens
+  tft1.begin();
+  tft1.setRotation(1); // Landscape 320x240
+  tft1.fillScreen(ILI9341_BLACK);
+  tft1.setCursor(0,0);
+  tft1.setTextColor(ILI9341_WHITE);
+  tft1.setTextSize(2);
+  tft1.println("SCREEN 1: READY");
 
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nWiFi connected.");
+  tft2.begin();
+  tft2.setRotation(1); // Landscape 320x240
+  tft2.fillScreen(ILI9341_BLACK);
+  tft2.setCursor(0,0);
+  tft2.setTextColor(ILI9341_WHITE);
+  tft2.setTextSize(2);
+  tft2.println("SCREEN 2: READY");
+
+  // Setup JPEG Decoder
+  TJpgDec.setJpgScale(1);
+  TJpgDec.setCallback(tft_output);
+
+  connectToWifi();
+  fetchActiveProduct();
 }
 
 void loop() {
+  if (WiFi.status() != WL_CONNECTED) {
+    connectToWifi();
+  }
+
   unsigned long currentMillis = millis();
   if (currentMillis - lastUpdate >= updateInterval) {
     lastUpdate = currentMillis;
@@ -86,9 +89,38 @@ void loop() {
   }
 }
 
+void connectToWifi() {
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+
+  tft2.fillScreen(ILI9341_BLACK);
+  tft2.setCursor(20, 100);
+  tft2.setTextSize(2);
+  tft2.println("Connecting WiFi...");
+
+  int counter = 0;
+  while (WiFi.status() != WL_CONNECTED && counter < 20) {
+    delay(500);
+    Serial.print(".");
+    counter++;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWiFi connected.");
+    tft2.setTextColor(KRISHI_GREEN);
+    tft2.println("CONNECTED!");
+    delay(1000);
+  } else {
+    Serial.println("\nWiFi connection FAILED.");
+    tft2.setTextColor(ILI9341_RED);
+    tft2.println("FAILED!");
+  }
+}
+
 void fetchActiveProduct() {
   WiFiClientSecure client;
-  client.setInsecure(); // Skip certificate verification for simplicity
+  client.setInsecure();
 
   HTTPClient http;
   if (http.begin(client, serverUrl)) {
@@ -106,101 +138,132 @@ void handleStatusResponse(String json) {
   DeserializationError error = deserializeJson(doc, json);
   if (error) return;
 
-  const char* status = doc["status"];
+  const char *status = doc["status"];
   if (String(status) != "active") {
     turnOffAllLeds();
-    display1.clearDisplay();
-    display1.setCursor(0,0);
-    display1.println("Waiting for");
-    display1.println("Remote Control...");
-    display1.display();
-    
-    display2.clearDisplay();
-    display2.display();
+    showWaitingScreen();
     return;
   }
 
   JsonObject activeProduct = doc["activeProduct"];
-  const char* productId = activeProduct["id"];
-  const char* productName = activeProduct["name"];
-  const char* productCrops = activeProduct["crops"];
-  JsonArray fields = activeProduct["fields"];
-
+  const char *productId = activeProduct["id"];
+  const char *productName = activeProduct["name"];
+  const char *productCrops = activeProduct["crops"];
   int y25 = activeProduct["y25"];
   int y26 = activeProduct["y26"];
   int aspiration = activeProduct["aspiration"];
-  
-  turnOffAllLeds();
-  updateScreen1(productName, productCrops);
-  updateScreen2(y25, y26, aspiration);
-  
-  // Toggle LEDs
-  if (String(productId) == "gainexa") digitalWrite(PIN_GAINEXA, HIGH);
-  if (String(productId) == "centurion") digitalWrite(PIN_CENTURION, HIGH);
+  const char *unit = activeProduct["unit"] | "Kg";
+  int ledPin = activeProduct["ledPin"] | 2;
 
-  for (String field : fields) {
-    if (field == "paddy") digitalWrite(PIN_PADDY, HIGH);
-    if (field == "jute") digitalWrite(PIN_JUTE, HIGH);
-    if (field == "sugarcane") digitalWrite(PIN_SUGARCANE, HIGH);
-    if (field == "corn") digitalWrite(PIN_CORN, HIGH);
-    if (field == "potato") digitalWrite(PIN_POTATO, HIGH);
-    if (field == "cauliflower" || field == "cabbage" || field == "capsicum" || field == "brinjal" || field == "chilli") {
-      digitalWrite(PIN_VEGETABLE, HIGH);
-    }
+  turnOffAllLeds();
+
+  // Update Screen 2 (Details)
+  updateScreen2(productName, productCrops, y25, y26, aspiration, unit);
+
+  // Update Screen 1 (Image)
+  if (currentLoadedImageId != String(productId)) {
+    fetchAndDrawImage(productId);
+    currentLoadedImageId = String(productId);
+  }
+
+  // LED Control
+  if (ledPin > 0) {
+    pinMode(ledPin, OUTPUT);
+    digitalWrite(ledPin, HIGH);
+    lastDynamicLedPin = ledPin;
   }
 }
 
-void updateScreen1(const char* name, const char* crops) {
-  display1.clearDisplay();
-  display1.setCursor(0,0);
-  display1.setTextSize(2);
-  display1.println(name);
-  display1.setTextSize(1);
-  display1.println("");
-  display1.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
-  display1.println(" TARGET CROPS: ");
-  display1.setTextColor(SSD1306_WHITE);
-  display1.println(crops);
-  display1.display();
+void fetchAndDrawImage(const char* id) {
+  String url = String(bitmapApiUrl) + String(id);
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  
+  if (http.begin(client, url)) {
+    int httpCode = http.GET();
+    if (httpCode == HTTP_CODE_OK) {
+      // Draw to Screen 1
+      digitalWrite(TFT_CS1, LOW);
+      digitalWrite(TFT_CS2, HIGH); // Disable S2
+      
+      // Decode directly from stream
+      TJpgDec.drawStream(0, 0, http.getStream());
+      
+      digitalWrite(TFT_CS1, HIGH);
+    }
+    http.end();
+  }
 }
 
-void updateScreen2(int y25, int y26, int asp) {
-  display2.clearDisplay();
-  display2.setTextSize(1);
-  display2.setCursor(0,0);
-  display2.println("SALES ANALYTICS");
-  display2.drawFastHLine(0, 10, 128, SSD1306_WHITE);
+void updateScreen2(const char *name, const char *crops, int y25, int y26, int asp, const char *unit) {
+  digitalWrite(TFT_CS1, HIGH);
+  digitalWrite(TFT_CS2, LOW); // Enable S2
 
-  int maxVal = max(y25, max(y26, asp));
-  if (maxVal == 0) maxVal = 100;
+  tft2.fillScreen(ILI9341_BLACK);
   
-  // Draw Bars: x, y, w, h
-  int b1h = map(y25, 0, maxVal, 0, 35);
-  int b2h = map(y26, 0, maxVal, 0, 35);
-  int b3h = map(asp, 0, maxVal, 0, 35);
+  // Header Panel
+  tft2.fillRect(0, 0, 320, 50, KRISHI_DARK);
+  tft2.setTextColor(ILI9341_WHITE);
+  tft2.setTextSize(3);
+  tft2.setCursor(10, 12);
+  tft2.print(name);
 
-  display2.fillRect(10, 55-b1h, 20, b1h, SSD1306_WHITE);
-  display2.fillRect(50, 55-b2h, 20, b2h, SSD1306_WHITE);
-  display2.fillRect(90, 55-b3h, 20, b3h, SSD1306_WHITE);
+  // Crops Subtitle
+  tft2.setTextSize(2);
+  tft2.setTextColor(KRISHI_GREEN);
+  tft2.setCursor(10, 60);
+  tft2.print("Crops: ");
+  tft2.setTextColor(ILI9341_WHITE);
+  tft2.println(crops);
 
-  display2.setCursor(5, 57); display2.print("25-26");
-  display2.setCursor(45, 57); display2.print("26-27");
-  display2.setCursor(85, 57); display2.print("ASPIR");
+  // Numeric Values List
+  tft2.drawFastHLine(0, 90, 320, ILI9341_GREY);
+  
+  // Row 1: 2025-26 Sales
+  tft2.setTextSize(2);
+  tft2.setTextColor(ILI9341_BLUE);
+  tft2.setCursor(10, 110);
+  tft2.print("2025-26 Sales:");
+  tft2.setTextSize(3);
+  tft2.setTextColor(ILI9341_WHITE);
+  tft2.setCursor(10, 135);
+  tft2.print(y25); tft2.setTextSize(2); tft2.print(" "); tft2.print(unit);
 
-  display2.setCursor(10, 55-b1h-10); display2.print(y25);
-  display2.setCursor(50, 55-b2h-10); display2.print(y26);
-  display2.setCursor(90, 55-b3h-10); display2.print(asp);
+  // Row 2: 2026-27 Sales
+  tft2.setTextSize(2);
+  tft2.setTextColor(ILI9341_CYAN);
+  tft2.setCursor(10, 170);
+  tft2.print("2026-27 Sales:");
+  tft2.setTextSize(3);
+  tft2.setTextColor(ILI9341_WHITE);
+  tft2.setCursor(10, 195);
+  tft2.print(y26); tft2.setTextSize(2); tft2.print(" "); tft2.print(unit);
 
-  display2.display();
+  // Row 3: Aspiration (Target)
+  tft2.drawFastHLine(0, 230, 320, ILI9341_GREY);
+  tft2.setTextSize(2);
+  tft2.setTextColor(KRISHI_GREEN);
+  tft2.setCursor(10, 245);
+  tft2.print("TARGET:");
+  tft2.setTextSize(3);
+  tft2.setCursor(100, 240);
+  tft2.print(asp); tft2.setTextSize(2); tft2.print(" "); tft2.print(unit);
+
+  digitalWrite(TFT_CS2, HIGH);
+}
+
+void showWaitingScreen() {
+  tft1.fillScreen(ILI9341_BLACK);
+  tft1.setCursor(40, 100);
+  tft1.setTextSize(2);
+  tft1.println("Waiting for Select...");
+  
+  tft2.fillScreen(ILI9341_BLACK);
 }
 
 void turnOffAllLeds() {
-  digitalWrite(PIN_PADDY, LOW);
-  digitalWrite(PIN_JUTE, LOW);
-  digitalWrite(PIN_VEGETABLE, LOW);
-  digitalWrite(PIN_SUGARCANE, LOW);
-  digitalWrite(PIN_CORN, LOW);
-  digitalWrite(PIN_POTATO, LOW);
-  digitalWrite(PIN_GAINEXA, LOW);
-  digitalWrite(PIN_CENTURION, LOW);
+  if (lastDynamicLedPin > 0) {
+    digitalWrite(lastDynamicLedPin, LOW);
+  }
 }

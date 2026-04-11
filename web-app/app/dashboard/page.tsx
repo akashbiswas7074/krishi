@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { IProduct } from '@/models/Product';
 
-let socket: Socket;
+let socket: Socket | null = null;
 import { signOut } from 'next-auth/react';
 
 // Helper to convert File to Base64
@@ -21,8 +21,9 @@ export default function Dashboard() {
   const [tab, setTab] = useState<'control' | 'admin'>('control');
 
   const [formData, setFormData] = useState({
-    name: '', crops: '', y25: '', y26: '', aspiration: '', fields: ''
+    name: '', crops: '', y25: '', y26: '', aspiration: '', ledPin: '', unit: 'Kg'
   });
+  const [isAutoCycle, setIsAutoCycle] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -60,9 +61,21 @@ export default function Dashboard() {
     });
 
     return () => {
-      socket.disconnect();
+      socket?.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isAutoCycle && tab === 'control' && products.length > 1) {
+      interval = setInterval(() => {
+        const currentIndex = products.findIndex(p => p.id === activeProduct?.id);
+        const nextIndex = (currentIndex + 1) % products.length;
+        selectProduct(products[nextIndex].id);
+      }, 5000);
+    }
+    return () => clearInterval(interval);
+  }, [isAutoCycle, tab, activeProduct, products]);
 
   const selectProduct = async (id: string) => {
     if (socket && socket.connected) {
@@ -83,7 +96,13 @@ export default function Dashboard() {
   const handleEdit = (e: React.MouseEvent, p: IProduct) => {
     e.stopPropagation();
     setFormData({
-      name: p.name, crops: p.crops, y25: p.y25.toString(), y26: p.y26.toString(), aspiration: p.aspiration.toString(), fields: p.fields.join(', ')
+      name: p.name, 
+      crops: p.crops, 
+      y25: p.y25.toString(), 
+      y26: p.y26.toString(), 
+      aspiration: p.aspiration.toString(), 
+      ledPin: p.ledPin?.toString() || '0',
+      unit: p.unit || ''
     });
     setEditingProductId(p.id);
     setTab('admin');
@@ -98,7 +117,7 @@ export default function Dashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
       });
-      socket.emit('productsUpdated');
+      if (socket) socket.emit('productsUpdated');
     } catch(err) {
       console.error(err);
       alert('Failed to delete');
@@ -137,7 +156,8 @@ export default function Dashboard() {
       y25: Number(formData.y25),
       y26: Number(formData.y26),
       aspiration: Number(formData.aspiration),
-      fields: formData.fields.split(',').map(s => s.trim())
+      ledPin: isNaN(Number(formData.ledPin)) ? 0 : Number(formData.ledPin),
+      unit: formData.unit
     };
     if (imageUrl) payload.imageUrl = imageUrl;
 
@@ -148,11 +168,13 @@ export default function Dashboard() {
         body: JSON.stringify(payload)
       });
       alert(editingProductId ? "Product Updated Successfully!" : "Product Added Successfully!");
-      setFormData({ name: '', crops: '', y25: '', y26: '', aspiration: '', fields: '' });
+      setFormData({ 
+        name: '', crops: '', y25: '', y26: '', aspiration: '', ledPin: '', unit: 'Kg'
+      });
       setImageFile(null);
       setEditingProductId(null);
       setTab('control');
-      socket.emit('productsUpdated');
+      if (socket) socket.emit('productsUpdated');
     } catch(err) {
       console.error(err);
       alert("Error saving product");
@@ -168,13 +190,62 @@ export default function Dashboard() {
         <button className="btn" style={{ background: '#ef4444' }} onClick={() => signOut()}>Sign Out</button>
       </div>
       
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', alignItems: 'center' }}>
         <button className="btn" style={{ background: tab==='control' ? 'var(--accent)' : 'transparent', border: '1px solid var(--glass-border)' }} onClick={() => setTab('control')}>Control Screens</button>
         <button className="btn" style={{ background: tab==='admin' ? 'var(--accent)' : 'transparent', border: '1px solid var(--glass-border)' }} onClick={() => setTab('admin')}>Add Product</button>
+        {tab === 'control' && (
+          <button 
+            className="btn" 
+            style={{ marginLeft: 'auto', background: isAutoCycle ? '#22c55e' : '#475569', display: 'flex', alignItems: 'center', gap: '8px' }}
+            onClick={() => setIsAutoCycle(!isAutoCycle)}
+          >
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: isAutoCycle ? '#fff' : '#94a3b8', boxShadow: isAutoCycle ? '0 0 8px #fff' : 'none' }}></div>
+            Auto Cycle (5s)
+          </button>
+        )}
       </div>
 
       {tab === 'control' && (
-        <div className="products-grid">
+        <>
+          <div className="preview-container" style={{ display: 'flex', gap: '1.5rem', marginBottom: '3rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+             <div className="virtual-tft" style={{ border: '8px solid #334155', borderRadius: '12px', overflow: 'hidden', width: '320px', height: '240px', background: '#000', position: 'relative', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
+                <div style={{ position: 'absolute', top: 5, right: 10, fontSize: '0.6rem', color: '#64748b', fontWeight: 'bold' }}>SCREEN 1 - IMAGE</div>
+                {activeProduct?.imageUrl ? (
+                  <img src={activeProduct.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="preview" />
+                ) : (
+                  <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>No Image</div>
+                )}
+             </div>
+
+             <div className="virtual-tft" style={{ border: '8px solid #334155', borderRadius: '12px', overflow: 'hidden', width: '320px', height: '240px', background: '#000', color: '#fff', position: 'relative', fontFamily: 'monospace', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
+                <div style={{ position: 'absolute', bottom: 5, right: 10, fontSize: '0.6rem', color: '#64748b', fontWeight: 'bold' }}>SCREEN 2 - DETAILS</div>
+                <div style={{ background: '#182828', height: '50px', padding: '10px', display: 'flex', alignItems: 'center' }}>
+                   <div style={{ fontSize: '1.5rem', fontWeight: 'bold', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{activeProduct?.name || 'Waiting...'}</div>
+                </div>
+                <div style={{ padding: '10px 15px' }}>
+                   <div style={{ color: '#00FF00', fontSize: '1.2rem', marginBottom: '8px' }}>Crops: <span style={{ color: '#fff' }}>{activeProduct?.crops || '-'}</span></div>
+                   
+                   <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', paddingBottom: '8px' }}>
+                         <div style={{ color: '#2563eb', fontWeight: 'bold' }}>2025-26 Sales:</div>
+                         <div style={{ fontSize: '1.2rem' }}>{activeProduct?.y25?.toLocaleString() || 0} <span style={{fontSize: '0.8rem'}}>{activeProduct?.unit}</span></div>
+                      </div>
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', paddingBottom: '8px' }}>
+                         <div style={{ color: '#06b6d4', fontWeight: 'bold' }}>2026-27 Sales:</div>
+                         <div style={{ fontSize: '1.2rem' }}>{activeProduct?.y26?.toLocaleString() || 0} <span style={{fontSize: '0.8rem'}}>{activeProduct?.unit}</span></div>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                         <div style={{ color: '#22c55e', fontWeight: 'bold' }}>Aspiration Target:</div>
+                         <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{activeProduct?.aspiration?.toLocaleString() || 0} <span style={{fontSize: '0.8rem'}}>{activeProduct?.unit}</span></div>
+                      </div>
+                   </div>
+                </div>
+             </div>
+          </div>
+        
+          <div className="products-grid">
           {products.map(p => (
             <div 
               key={p.id} 
@@ -186,22 +257,43 @@ export default function Dashboard() {
                 <div style={{ width: 60, height: 60, background: '#334155', borderRadius: 8 }}></div>
               }
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 'bold' }}>{p.name}</div>
-                <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{p.crops}</div>
+                <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {p.name}
+                  {activeProduct?.id === p.id && (
+                    <span style={{ fontSize: '0.7rem', background: '#22c55e', padding: '2px 6px', borderRadius: '4px', color: 'white' }}>ACTIVE</span>
+                  )}
+                </div>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{p.crops} {p.unit ? `(${p.unit})` : ''}</div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <button 
-                   className="btn" 
-                   style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }} 
-                   onClick={(e) => handleEdit(e, p)}>Edit</button>
-                <button 
-                   className="btn" 
-                   style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', background: '#ef4444' }} 
-                   onClick={(e) => handleDelete(e, p.id)}>Delete</button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: '90px' }}>
+                {activeProduct?.id !== p.id ? (
+                  <button 
+                    className="btn" 
+                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', background: 'var(--accent)' }} 
+                    onClick={(e) => { e.stopPropagation(); selectProduct(p.id); }}
+                  >Activate</button>
+                ) : (
+                  <button 
+                    className="btn" 
+                    disabled
+                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', background: '#22c55e', opacity: 1, cursor: 'default' }} 
+                  >Live ON</button>
+                )}
+                <div style={{ display: 'flex', gap: '0.3rem' }}>
+                  <button 
+                     className="btn" 
+                     style={{ flex: 1, padding: '0.3rem', fontSize: '0.7rem' }} 
+                     onClick={(e) => { e.stopPropagation(); handleEdit(e, p); }}>Edit</button>
+                  <button 
+                     className="btn" 
+                     style={{ flex: 1, padding: '0.3rem', fontSize: '0.7rem', background: '#ef4444' }} 
+                     onClick={(e) => { e.stopPropagation(); handleDelete(e, p.id); }}>Del</button>
+                </div>
               </div>
             </div>
           ))}
-        </div>
+          </div>
+        </>
       )}
 
       {tab === 'admin' && (
@@ -234,10 +326,14 @@ export default function Dashboard() {
                 <label>Aspiration</label>
                 <input type="number" required value={formData.aspiration} onChange={e => setFormData({...formData, aspiration: e.target.value})} />
               </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label>Unit</label>
+                <input type="text" required value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} placeholder="Kg" />
+              </div>
             </div>
-            <div className="form-group">
-              <label>Hardware Fields (comma sep)</label>
-              <input type="text" required value={formData.fields} onChange={e => setFormData({...formData, fields: e.target.value})} />
+            <div className="form-group" style={{ flex: 1 }}>
+              <label>ESP32 LED Pin</label>
+              <input type="number" required value={formData.ledPin} onChange={e => setFormData({...formData, ledPin: e.target.value})} placeholder="e.g. 2" />
             </div>
             <button type="submit" disabled={isSubmitting} className="btn">
                 {isSubmitting ? 'Saving...' : (editingProductId ? 'Update Product' : 'Add Product')}
@@ -245,7 +341,9 @@ export default function Dashboard() {
             {editingProductId && (
               <button type="button" className="btn" style={{ marginLeft: '1rem', background: '#475569' }} onClick={() => {
                  setEditingProductId(null);
-                 setFormData({ name: '', crops: '', y25: '', y26: '', aspiration: '', fields: '' });
+                 setFormData({ 
+                    name: '', crops: '', y25: '', y26: '', aspiration: '', ledPin: '', unit: 'Kg'
+                 });
               }}>Cancel Edit</button>
             )}
           </form>

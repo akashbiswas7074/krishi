@@ -10,6 +10,8 @@ export interface IProduct extends Document {
   fields: string[];
   imageUrl: string | null;
   isActive: boolean;
+  ledPin: number;
+  unit: string;
 }
 
 const ProductSchema: Schema = new mongoose.Schema({
@@ -41,10 +43,6 @@ const ProductSchema: Schema = new mongoose.Schema({
     required: true,
     default: 0,
   },
-  fields: {
-    type: [String],
-    default: [],
-  },
   imageUrl: {
     type: String,
     default: null,
@@ -52,11 +50,22 @@ const ProductSchema: Schema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: false,
+  },
+  ledPin: {
+    type: Number,
+    default: 2,
+  },
+  unit: {
+    type: String,
+    default: 'Kg',
   }
 }, {
   timestamps: true
 });
 
-const Product: Model<IProduct> = mongoose.models.Product || mongoose.model<IProduct>('Product', ProductSchema);
+if (mongoose.models.Product) {
+  delete mongoose.models.Product;
+}
+const Product: Model<IProduct> = mongoose.model<IProduct>('Product', ProductSchema);
 
 export default Product;
