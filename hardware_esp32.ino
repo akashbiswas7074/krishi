@@ -10,7 +10,7 @@
 #include <vector>
 
 // --- WIFI CONFIG ---
-const char *ssid = "jharnais A 15";
+const char *ssid = "Jharna's A15";
 const char *password = "12345678";
 
 // The Vercel URL for fetching data
@@ -107,6 +107,12 @@ void loop() {
 void connectToWifi() {
   Serial.print("Connecting to ");
   Serial.println(ssid);
+  
+  // Robust Reset for ESP32-S3 WiFi
+  WiFi.disconnect(true);
+  delay(100);
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
   WiFi.begin(ssid, password);
 
   tft2.fillScreen(ILI9341_BLACK);
@@ -114,23 +120,41 @@ void connectToWifi() {
   tft2.setTextColor(ILI9341_WHITE);
   tft2.setTextSize(2);
   tft2.println("Connecting WiFi...");
+  tft2.setCursor(20, 130);
+  tft2.setTextSize(1);
+  tft2.print("SSID: "); tft2.println(ssid);
 
   int counter = 0;
-  while (WiFi.status() != WL_CONNECTED && counter < 20) {
+  // Increase timeout to 20 seconds (40 * 500ms)
+  while (WiFi.status() != WL_CONNECTED && counter < 40) {
     delay(500);
     Serial.print(".");
+    tft2.print(".");
     counter++;
   }
 
+  tft2.setTextSize(2);
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("\nWiFi connected.");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+    
+    tft2.fillRect(0, 160, 320, 80, ILI9341_BLACK);
+    tft2.setCursor(20, 170);
     tft2.setTextColor(KRISHI_GREEN);
     tft2.println("CONNECTED!");
-    delay(1000);
+    tft2.setTextColor(ILI9341_WHITE);
+    tft2.setTextSize(1);
+    tft2.print("IP: "); tft2.println(WiFi.localIP().toString());
+    delay(2000);
   } else {
     Serial.println("\nWiFi connection FAILED.");
     tft2.setTextColor(ILI9341_RED);
+    tft2.setCursor(20, 170);
     tft2.println("FAILED!");
+    tft2.setTextSize(1);
+    tft2.println("Check SSID/PASS or Signal");
+    delay(3000);
   }
 }
 

@@ -47,9 +47,11 @@ async function run() {
 
     console.log(`Found ${itemsToImport.length} potential products to import.`);
 
+    const safePins = [1, 2, 3, 4, 5, 6, 7, 15, 16, 17, 18, 21, 38, 39, 40];
     let successCount = 0;
     
-    for (const item of itemsToImport) {
+    for (let i = 0; i < itemsToImport.length; i++) {
+      const item = itemsToImport[i];
       const name = item[' Budget (Bengal & Bihar)'];
       const crops = item['__EMPTY'];
       const y25 = parseFloat(item['__EMPTY_1']) || 0;
@@ -59,8 +61,11 @@ async function run() {
 
       if (!name || name === 'Product Name') continue;
 
+      // Assign a unique pin from the safePins array
+      const assignedPin = safePins[successCount % safePins.length];
+
       // Generate a simple slug for ID
-      const id = 'prod_' + name.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Math.floor(Math.random() * 1000);
+      const id = 'prod_' + name.toLowerCase().replace(/[^a-z0-9]/g, '_');
 
       // Upsert: search by name, update all fields
       await Product.findOneAndUpdate(
@@ -73,7 +78,7 @@ async function run() {
           y26: y26,
           aspiration: aspiration,
           unit: unit,
-          ledPin: 2 // Default pin
+          ledPin: assignedPin
         },
         { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
       );
@@ -81,7 +86,7 @@ async function run() {
       successCount++;
     }
 
-    console.log(`Successfully processed ${successCount} products.`);
+    console.log(`Successfully processed ${successCount} products with unique pin assignments.`);
     process.exit(0);
   } catch (err) {
     console.error("Critical error during import:", err);
