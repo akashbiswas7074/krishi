@@ -123,20 +123,94 @@ label {
   border-radius: 12px;
   padding: 1rem;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  display: flex;
-  align-items: center;
-  gap: 1rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
 .product-card:hover {
-  background: rgba(255, 255, 255, 0.08);
-  transform: translateY(-5px);
-}
-.product-card.active {
+  transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.1);
   border-color: var(--accent);
-  box-shadow: 0 0 20px var(--accent-glow);
-  background: rgba(59, 130, 246, 0.1);
 }
+
+.product-card.active {
+  background: rgba(37, 99, 235, 0.1);
+  border-color: var(--accent);
+  box-shadow: 0 0 20px rgba(37, 99, 235, 0.2);
+}
+
+/* RESPONSIVE MEDIA QUERIES */
+
+@media (max-width: 1024px) {
+  .products-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .preview-container {
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding: 1rem;
+  }
+
+  .header-actions {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .header-actions h1 {
+    font-size: 1.8rem;
+  }
+
+  .preview-container {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .virtual-tft {
+    width: 100% !important;
+    max-width: 320px;
+    height: auto !important;
+    aspect-ratio: 4/3;
+  }
+
+  .products-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .product-card {
+    padding: 1rem;
+  }
+
+  .glass-panel {
+    padding: 1.5rem;
+  }
+
+  /* Admin Manage Table Scroll */
+  .glass-panel div {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .btn {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+  }
+
+  .header-actions h1 {
+    font-size: 1.5rem;
+  }
+
+  .text-gradient {
+    font-size: 2rem !important; /* Centered landing page title adjustment */
+  }
+}
+
 .product-card img {
   width: 60px;
   height: 60px;
@@ -274,6 +348,10 @@ label {
   height: 240px;
   background: #000;
   box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+}
+
+.virtual-tft.s1 {
+  background: #fff;
 }
 
 .tft-content {

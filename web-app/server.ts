@@ -46,12 +46,17 @@ app.prepare().then(async () => {
   let cycleInterval: NodeJS.Timeout | null = null;
 
   const startRotation = async () => {
-    if (cycleInterval) clearInterval(cycleInterval);
+    if (cycleInterval) {
+      console.log('[Rotation] Resetting current interval.');
+      clearInterval(cycleInterval);
+    }
     
     cycleInterval = setInterval(async () => {
       try {
         const products = await Product.find({ isActive: true }).lean();
-        console.log(`[Rotation] Active products found: ${products.length}`);
+        const activeIds = products.map(p => p.id);
+        
+        console.log(`[Rotation] Active (${products.length}): ${activeIds.join(', ')}`);
         
         if (products.length === 0) {
           if (activeProductId !== null) {
@@ -62,11 +67,15 @@ app.prepare().then(async () => {
           return;
         }
 
+        let nextIndex = 0;
         const currentIndex = products.findIndex(p => p.id === activeProductId);
-        const nextIndex = (currentIndex + 1) % products.length;
-        const nextProduct: any = products[nextIndex];
         
-        console.log(`[Rotation] Advancing to: ${nextProduct.name} (${nextProduct.id})`);
+        if (currentIndex !== -1) {
+          nextIndex = (currentIndex + 1) % products.length;
+        }
+        
+        const nextProduct: any = products[nextIndex];
+        console.log(`[Rotation] Advancing: ${activeProductId} -> ${nextProduct.id} (${nextProduct.name})`);
         
         activeProductId = nextProduct.id;
         const mappedProduct = { ...nextProduct, _id: nextProduct._id.toString() };
@@ -77,7 +86,7 @@ app.prepare().then(async () => {
           fieldLeds: nextProduct.fields || []
         });
       } catch (err) {
-        console.error('Rotation error:', err);
+        console.error('[Rotation Error]', err);
       }
     }, 5000);
   };
@@ -88,6 +97,11 @@ app.prepare().then(async () => {
   io.on('connection', async (socket) => {
     console.log('Client connected:', socket.id);
     
+    // Fallback: Ensure rotation is running when the first client connects
+    if (!cycleInterval) {
+      console.log('[Server] Initializing rotation on client connection.');
+      startRotation();
+    }
     try {
       const products = await Product.find({}).lean();
       const mappedProducts = products.map(p => ({...p, _id: p._id.toString()}));

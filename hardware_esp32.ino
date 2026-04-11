@@ -84,11 +84,11 @@ void setup() {
   // Initialize both screens
   tft1.begin();
   tft1.setRotation(1);
-  tft1.fillScreen(ILI9341_BLACK);
+  tft1.fillScreen(ILI9341_WHITE); // White background for image screen
 
   tft2.begin();
   tft2.setRotation(1);
-  tft2.fillScreen(ILI9341_BLACK);
+  tft2.fillScreen(ILI9341_BLACK); // Black background for details screen
 
   // Setup JPEG Decoder
   TJpgDec.setJpgScale(1);
@@ -180,7 +180,7 @@ void syncAllData() {
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
       String payload = http.getString();
-      DynamicJsonDocument doc(16384); // Larger buffer for all products
+      DynamicJsonDocument doc(32768); // Increased from 16384 to 32768 to handle larger datasets
       DeserializationError error = deserializeJson(doc, payload);
       
       if (!error) {
@@ -202,6 +202,8 @@ void syncAllData() {
           prod.ledPin = p["ledPin"] | 2;
           
           localProducts.push_back(prod);
+          Serial.print("Synced: "); Serial.print(prod.name); 
+          Serial.print(" (Target: "); Serial.print(prod.aspiration); Serial.println(")");
           
           // Progress UI
           current++;
@@ -322,9 +324,24 @@ void drawLocalImage(const char* id) {
   digitalWrite(TFT_CS1, LOW);
   digitalWrite(TFT_CS2, HIGH); 
   
+  tft1.fillScreen(ILI9341_WHITE); // Clear with white before drawing image
   TJpgDec.drawFsJpg(0, 0, filename);
   
   digitalWrite(TFT_CS1, HIGH);
+}
+
+// Helper to format numbers with commas
+String formatNum(int n) {
+  String out = String(n);
+  if (n < 1000) return out;
+  if (n < 1000000) {
+    int k = n / 1000;
+    int r = n % 1000;
+    char buf[10];
+    sprintf(buf, "%d,%03d", k, r);
+    return String(buf);
+  }
+  return out; // Handle larger if needed, but 999,999 is enough for now
 }
 
 void updateScreen2(const char *name, const char *crops, int y25, int y26, int asp, const char *unit) {
@@ -332,59 +349,55 @@ void updateScreen2(const char *name, const char *crops, int y25, int y26, int as
   digitalWrite(TFT_CS2, LOW); // Enable S2
 
   // Cinematic Wipe Transition
-  for (int x = 0; x < 320; x += 16) {
-    tft2.fillRect(x, 0, 16, 240, ILI9341_BLACK);
-    tft2.drawFastVLine(x + 16, 0, 240, KRISHI_GREEN); // Scanning line
-    delay(10);
+  for (int x = 0; x < 320; x += 32) { // Faster wipe for better sync
+    tft2.fillRect(x, 0, 32, 240, ILI9341_BLACK);
+    tft2.drawFastVLine(x + 32, 0, 240, KRISHI_GREEN);
   }
   
   // Header Panel
   tft2.fillRect(0, 0, 320, 50, KRISHI_DARK);
   tft2.setTextColor(ILI9341_WHITE);
-  tft2.setTextSize(3);
-  tft2.setCursor(10, 12);
-  tft2.print(name);
-
-  // Crops Subtitle
-  tft2.setTextSize(2);
-  tft2.setTextColor(KRISHI_GREEN);
-  tft2.setCursor(10, 60);
-  tft2.print("Crops: ");
-  tft2.setTextColor(ILI9341_WHITE);
-  tft2.println(crops);
-
-  // Numeric Values List
-  tft2.drawFastHLine(0, 90, 320, ILI9341_GREY);
   
+  String nameStr = String(name);
+  if (nameStr.length() > 14) {
+    tft2.setTextSize(2);
+    tft2.setCursor(10, 15);
+  } else {
+    tft2.setTextSize(3);
+    tft2.setCursor(10, 12);
+  }
+  tft2.print(nameStr);
+
   // Row 1: 2025-26 Sales
+  tft2.drawFastHLine(0, 90, 320, ILI9341_GREY);
   tft2.setTextSize(2);
   tft2.setTextColor(ILI9341_BLUE);
-  tft2.setCursor(10, 110);
+  tft2.setCursor(10, 105);
   tft2.print("2025-26 Sales:");
   tft2.setTextSize(3);
   tft2.setTextColor(ILI9341_WHITE);
-  tft2.setCursor(10, 135);
-  tft2.print(y25); tft2.setTextSize(2); tft2.print(" "); tft2.print(unit);
+  tft2.setCursor(10, 125);
+  tft2.print(formatNum(y25)); tft2.setTextSize(2); tft2.print(" "); tft2.print(unit);
 
-  // Row 2: 2026-27 Sales
+  // Row 2: 2026-2027 Sales (MATCHING EXCEL)
   tft2.setTextSize(2);
   tft2.setTextColor(ILI9341_CYAN);
-  tft2.setCursor(10, 170);
-  tft2.print("2026-27 Sales:");
+  tft2.setCursor(10, 160);
+  tft2.print("2026-2027 Sales:");
   tft2.setTextSize(3);
   tft2.setTextColor(ILI9341_WHITE);
-  tft2.setCursor(10, 195);
-  tft2.print(y26); tft2.setTextSize(2); tft2.print(" "); tft2.print(unit);
+  tft2.setCursor(10, 180);
+  tft2.print(formatNum(y26)); tft2.setTextSize(2); tft2.print(" "); tft2.print(unit);
 
-  // Row 3: Aspiration (Target)
-  tft2.drawFastHLine(0, 230, 320, ILI9341_GREY);
+  // Row 3: Aspiration (Target) - REPOSITIONED FOR VISIBILITY
+  tft2.drawFastHLine(0, 200, 320, ILI9341_GREY);
   tft2.setTextSize(2);
   tft2.setTextColor(KRISHI_GREEN);
-  tft2.setCursor(10, 245);
-  tft2.print("TARGET:");
+  tft2.setCursor(10, 205);
+  tft2.print("ASPIRATION TARGET:");
   tft2.setTextSize(3);
-  tft2.setCursor(100, 240);
-  tft2.print(asp); tft2.setTextSize(2); tft2.print(" "); tft2.print(unit);
+  tft2.setCursor(10, 222); // Perfectly centered in bottom zone
+  tft2.print(formatNum(asp)); tft2.setTextSize(2); tft2.print(" "); tft2.print(unit);
 
   digitalWrite(TFT_CS2, HIGH);
 }

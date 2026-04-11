@@ -34,10 +34,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!id) return res.status(400).json({ error: 'Product ID required' });
 
     try {
-      // 1. Reset all products to inactive
-      await Product.updateMany({}, { isActive: false });
-      
-      // 2. Set the chosen product to active
+      // 1. Reset logic removed to allow "Selective Slideshow" to function correctly.
+      // 2. Simply set the chosen product to active (Ensures it is part of the display rotation)
       const updated = await Product.findOneAndUpdate(
         { id },
         { isActive: true },

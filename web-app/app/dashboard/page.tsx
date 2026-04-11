@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { IProduct } from '@/models/Product';
+import { signOut, useSession } from 'next-auth/react';
 
 let socket: Socket | null = null;
-import { signOut } from 'next-auth/react';
 
 // Helper to convert File to Base64
 const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
@@ -18,7 +18,11 @@ const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) 
 export default function Dashboard() {
   const [products, setProducts] = useState<IProduct[]>([]);
   const [activeProduct, setActiveProduct] = useState<IProduct | null>(null);
-  const [tab, setTab] = useState<'control' | 'admin'>('control');
+  const [tab, setTab] = useState<'control' | 'admin' | 'admin_manage'>('control');
+  const [users, setUsers] = useState<any[]>([]);
+  
+  const { data: session } = useSession();
+  const isAdmin = (session?.user as any)?.role === 'admin';
 
   const [formData, setFormData] = useState({
     name: '', crops: '', y25: '', y26: '', aspiration: '', ledPin: '', unit: 'Kg'
@@ -36,6 +40,19 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error('Failed to fetch products via HTTP', err);
+    }
+  };
+
+  const fetchUsers = async () => {
+    if (!isAdmin) return;
+    try {
+      const res = await fetch('/api/admin/users');
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch users', err);
     }
   };
 
@@ -64,6 +81,12 @@ export default function Dashboard() {
     };
   }, []);
 
+  useEffect(() => {
+    if (tab === 'admin_manage' && isAdmin) {
+      fetchUsers();
+    }
+  }, [tab, isAdmin]);
+
   const toggleActiveProduct = async (p: IProduct) => {
     const newStatus = !p.isActive;
     try {
@@ -79,11 +102,9 @@ export default function Dashboard() {
   };
 
   const selectProduct = async (id: string) => {
-    // Manual activation override: reset timer and jump to this product
     if (socket && socket.connected) {
       socket.emit('selectProduct', id);
     }
-    
     try {
       await fetch('/api/active-product', {
         method: 'POST',
@@ -126,6 +147,30 @@ export default function Dashboard() {
     }
   };
 
+  const deleteUser = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this user?')) return;
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      if (res.ok) fetchUsers();
+    } catch (err) { console.error(err); }
+  };
+
+  const toggleUserRole = async (id: string, currentRole: string) => {
+    const newRole = currentRole === 'admin' ? 'user' : 'admin';
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, role: newRole })
+      });
+      if (res.ok) fetchUsers();
+    } catch (err) { console.error(err); }
+  };
+
   const submitAdminForm = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -140,12 +185,10 @@ export default function Dashboard() {
             body: JSON.stringify({ image: base64Img }) 
         });
         const data = await res.json();
-        
         if (data.error) throw new Error(data.error);
         imageUrl = data.imageUrl;
       } catch(err) {
         alert("Image upload failed");
-        console.error(err);
         setIsSubmitting(false);
         return;
       }
@@ -170,9 +213,7 @@ export default function Dashboard() {
         body: JSON.stringify(payload)
       });
       alert(editingProductId ? "Product Updated Successfully!" : "Product Added Successfully!");
-      setFormData({ 
-        name: '', crops: '', y25: '', y26: '', aspiration: '', ledPin: '', unit: 'Kg'
-      });
+      setFormData({ name: '', crops: '', y25: '', y26: '', aspiration: '', ledPin: '', unit: 'Kg' });
       setImageFile(null);
       setEditingProductId(null);
       setTab('control');
@@ -189,53 +230,73 @@ export default function Dashboard() {
     <div className="dashboard-container fade-in">
       <div className="header-actions">
         <h1 className="text-gradient">Master Remote Control</h1>
-        <button className="btn" style={{ background: '#ef4444' }} onClick={() => signOut()}>Sign Out</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+            Logged in as <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>{session?.user?.name}</span> ({isAdmin ? 'Admin' : 'User'})
+          </div>
+          <button className="btn" style={{ background: '#ef4444' }} onClick={() => signOut()}>Sign Out</button>
+        </div>
       </div>
       
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', alignItems: 'center' }}>
         <button className="btn" style={{ background: tab==='control' ? 'var(--accent)' : 'transparent', border: '1px solid var(--glass-border)' }} onClick={() => setTab('control')}>Control Screens</button>
         <button className="btn" style={{ background: tab==='admin' ? 'var(--accent)' : 'transparent', border: '1px solid var(--glass-border)' }} onClick={() => setTab('admin')}>Add Product</button>
+        {isAdmin && (
+          <button className="btn" style={{ background: tab==='admin_manage' ? 'var(--accent)' : 'transparent', border: '1px solid var(--glass-border)' }} onClick={() => setTab('admin_manage')}>Admin Manage</button>
+        )}
       </div>
 
       {tab === 'control' && (
         <>
           <div className="preview-container" style={{ display: 'flex', gap: '1.5rem', marginBottom: '3rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-             <div className="virtual-tft">
-                <div className="scanline-overlay"></div>
-                <div style={{ position: 'absolute', top: 5, right: 10, fontSize: '0.6rem', color: '#64748b', fontWeight: 'bold', zIndex: 20 }}>SCREEN 1 - IMAGE</div>
+             {/* Screen 1 Preview */}
+             <div className="virtual-tft s1">
+                <div className="scanline-overlay" style={{ background: 'rgba(0,0,0,0.05)' }}></div>
+                <div style={{ position: 'absolute', top: 5, right: 10, fontSize: '0.6rem', color: '#94a3b8', fontWeight: 'bold', zIndex: 20 }}>SCREEN 1 - IMAGE</div>
                 <div className="tft-content tft-animate" key={activeProduct?.id + '_s1'}>
                   {activeProduct?.imageUrl ? (
-                    <img src={activeProduct.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="preview" />
+                    <img src={activeProduct.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'contain', background: 'transparent' }} alt="preview" />
                   ) : (
-                    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>No Image</div>
+                    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1' }}>No Image</div>
                   )}
                 </div>
              </div>
  
+             {/* Screen 2 Preview */}
              <div className="virtual-tft" style={{ color: '#fff', fontFamily: 'monospace' }}>
                 <div className="scanline-overlay"></div>
                 <div style={{ position: 'absolute', bottom: 5, right: 10, fontSize: '0.6rem', color: '#64748b', fontWeight: 'bold', zIndex: 20 }}>SCREEN 2 - DETAILS</div>
                 <div className="tft-content tft-animate" key={activeProduct?.id + '_s2'}>
                   <div style={{ background: '#182828', height: '50px', padding: '10px', display: 'flex', alignItems: 'center' }}>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{activeProduct?.name || 'Waiting...'}</div>
+                    <div style={{ 
+                      fontSize: (activeProduct?.name?.length || 0) > 14 ? '1rem' : '1.5rem', 
+                      fontWeight: 'bold', 
+                      overflow: 'hidden', 
+                      whiteSpace: 'nowrap', 
+                      textOverflow: 'ellipsis' 
+                    }}>
+                      {activeProduct?.name || 'Waiting...'}
+                    </div>
                   </div>
-                  <div style={{ padding: '10px 15px' }}>
-                    <div style={{ color: '#00FF00', fontSize: '1.2rem', marginBottom: '8px' }}>Crops: <span style={{ color: '#fff' }}>{activeProduct?.crops || '-'}</span></div>
+                  <div style={{ padding: '10px 15px 25px 15px', height: '190px', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ color: '#00FF00', fontSize: (activeProduct?.crops?.length || 0) > 20 ? '0.8rem' : '1.2rem', marginBottom: '8px' }}>
+                      Crops: <span style={{ color: '#fff' }}>{activeProduct?.crops || '-'}</span>
+                    </div>
                     
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', paddingBottom: '8px' }}>
-                          <div style={{ color: '#2563eb', fontWeight: 'bold' }}>2025-26 Sales:</div>
-                          <div style={{ fontSize: '1.2rem' }}>{activeProduct?.y25?.toLocaleString() || 0} <span style={{fontSize: '0.8rem'}}>{activeProduct?.unit}</span></div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', paddingBottom: '4px' }}>
+                          <div style={{ color: '#2563eb', fontWeight: 'bold', fontSize: '0.9rem' }}>2025-26 Sales:</div>
+                          <div style={{ fontSize: '1.2rem' }}>{activeProduct?.y25?.toLocaleString() || 0} <span style={{fontSize: '0.7rem'}}>{activeProduct?.unit}</span></div>
                         </div>
                         
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', paddingBottom: '8px' }}>
-                          <div style={{ color: '#06b6d4', fontWeight: 'bold' }}>2026-27 Sales:</div>
-                          <div style={{ fontSize: '1.2rem' }}>{activeProduct?.y26?.toLocaleString() || 0} <span style={{fontSize: '0.8rem'}}>{activeProduct?.unit}</span></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', paddingBottom: '4px' }}>
+                          <div style={{ color: '#06b6d4', fontWeight: 'bold', fontSize: '0.9rem' }}>2026-2027 Sales:</div>
+                          <div style={{ fontSize: '1.2rem' }}>{activeProduct?.y26?.toLocaleString() || 0} <span style={{fontSize: '0.7rem'}}>{activeProduct?.unit}</span></div>
                         </div>
   
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ color: '#22c55e', fontWeight: 'bold' }}>Aspiration Target:</div>
-                          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{activeProduct?.aspiration?.toLocaleString() || 0} <span style={{fontSize: '0.8rem'}}>{activeProduct?.unit}</span></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid #334155' }}>
+                          <div style={{ color: '#22c55e', fontWeight: 'bold' }}>ASPIRATION TARGET:</div>
+                          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{activeProduct?.aspiration?.toLocaleString() || 0} <span style={{fontSize: '0.7rem'}}>{activeProduct?.unit}</span></div>
                         </div>
                     </div>
                   </div>
@@ -271,12 +332,13 @@ export default function Dashboard() {
                   style={{ 
                     padding: '0.3rem 0.6rem', 
                     fontSize: '0.8rem', 
-                    background: p.isActive ? '#ef4444' : '#22c55e',
-                    border: 'none'
+                    background: p.isActive ? '#22c55e' : '#475569',
+                    border: p.isActive ? '1px solid #166534' : '1px solid var(--glass-border)',
+                    color: p.isActive ? '#fff' : '#94a3b8'
                   }} 
                   onClick={(e) => { e.stopPropagation(); toggleActiveProduct(p); }}
                 >
-                  {p.isActive ? 'Exclude' : 'Include'} Display
+                  {p.isActive ? '✓ IN DISPLAY' : '✕ HIDDEN'}
                 </button>
                 <div style={{ display: 'flex', gap: '0.3rem' }}>
                   <button 
@@ -296,7 +358,7 @@ export default function Dashboard() {
       )}
 
       {tab === 'admin' && (
-        <div className="glass-panel" style={{ maxWidth: '600px' }}>
+        <div className="glass-panel" style={{ maxWidth: '600px', margin: '0 auto' }}>
           <form onSubmit={submitAdminForm}>
             <div className="form-group">
               <label>Product Name</label>
@@ -340,12 +402,69 @@ export default function Dashboard() {
             {editingProductId && (
               <button type="button" className="btn" style={{ marginLeft: '1rem', background: '#475569' }} onClick={() => {
                  setEditingProductId(null);
-                 setFormData({ 
-                    name: '', crops: '', y25: '', y26: '', aspiration: '', ledPin: '', unit: 'Kg'
-                 });
+                 setFormData({ name: '', crops: '', y25: '', y26: '', aspiration: '', ledPin: '', unit: 'Kg' });
               }}>Cancel Edit</button>
             )}
           </form>
+        </div>
+      )}
+
+      {tab === 'admin_manage' && isAdmin && (
+        <div className="glass-panel fade-in">
+          <h2 style={{ marginBottom: '1.5rem', color: 'var(--accent)' }}>User Management ({users.length})</h2>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--glass-border)', textAlign: 'left' }}>
+                  <th style={{ padding: '1rem' }}>Username</th>
+                  <th style={{ padding: '1rem' }}>Role</th>
+                  <th style={{ padding: '1rem' }}>Joined</th>
+                  <th style={{ padding: '1rem' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map(u => (
+                  <tr key={u._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <td style={{ padding: '1rem' }}>{u.username}</td>
+                    <td style={{ padding: '1rem' }}>
+                      <span style={{ 
+                        padding: '0.2rem 0.5rem', 
+                        borderRadius: '4px', 
+                        fontSize: '0.8rem',
+                        background: u.role === 'admin' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(148, 163, 184, 0.2)',
+                        color: u.role === 'admin' ? '#4ade80' : '#94a3b8'
+                      }}>
+                        {u.role.toUpperCase()}
+                      </span>
+                    </td>
+                    <td style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                      {new Date(u.createdAt).toLocaleDateString()}
+                    </td>
+                    <td style={{ padding: '1rem' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button 
+                          className="btn" 
+                          style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+                          onClick={() => toggleUserRole(u._id, u.role)}
+                        >
+                          {u.role === 'admin' ? 'Demote' : 'Promote'}
+                        </button>
+                        {u.username !== session?.user?.name && (
+                          <button 
+                            className="btn" 
+                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', background: '#ef4444' }}
+                            onClick={() => deleteUser(u._id)}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
