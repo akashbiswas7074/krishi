@@ -3,7 +3,7 @@ import { getSession } from 'next-auth/react';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import { getServerSession } from "next-auth/next";
-import authOptions from "../auth/[...nextauth]";
+import { authOptions } from "../auth/[...nextauth]";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions as any);
