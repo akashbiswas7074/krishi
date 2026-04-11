@@ -28,7 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const product = await Product.findOneAndUpdate(
       { id: body.id },
       body,
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     );
     
     return res.status(201).json(product);

@@ -41,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const updated = await Product.findOneAndUpdate(
         { id },
         { isActive: true },
-        { new: true }
+        { returnDocument: 'after' }
       );
 
       if (!updated) return res.status(404).json({ error: 'Product not found' });

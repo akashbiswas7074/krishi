@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { v2 as cloudinary } from 'cloudinary';
+import sharp from 'sharp';
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -27,13 +28,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'No image provided' });
     }
 
-    const uploadResponse = await cloudinary.uploader.upload(image, {
-      folder: 'agrarian_products',
-    });
+    // 1. Convert Base64 to Buffer
+    // Handle both raw base64 and data URI
+    const base64Data = image.split(';base64,').pop();
+    if (!base64Data) throw new Error('Invalid image format');
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    // 2. Convert to WebP using Sharp
+    const webpBuffer = await sharp(buffer)
+      .webp({ quality: 80 })
+      .toBuffer();
+
+    // 3. Upload specifically as WebP to Cloudinary via Stream
+    const uploadFromBuffer = (buffer: Buffer) => {
+      return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { 
+            folder: 'agrarian_products',
+            format: 'webp'
+          },
+          (error, result) => {
+            if (result) resolve(result);
+            else reject(error);
+          }
+        );
+        stream.end(buffer);
+      });
+    };
+
+    const uploadResponse: any = await uploadFromBuffer(webpBuffer);
 
     return res.status(200).json({ imageUrl: uploadResponse.secure_url });
   } catch (error) {
-    console.error('Cloudinary upload error:', error);
-    return res.status(500).json({ error: 'Image upload failed' });
+    console.error('Image processing/upload error:', error);
+    return res.status(500).json({ error: 'Image conversion or upload failed' });
   }
 }

@@ -41,7 +41,7 @@ async function seed() {
         await Product.findOneAndUpdate(
           { id: p.id },
           p,
-          { upsert: true, new: true }
+          { returnDocument: 'after', upsert: true }
         );
         count++;
       }

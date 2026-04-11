@@ -75,7 +75,7 @@ async function run() {
           unit: unit,
           ledPin: 2 // Default pin
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
       );
       
       successCount++;
