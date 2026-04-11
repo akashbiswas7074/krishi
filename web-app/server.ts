@@ -43,6 +43,47 @@ app.prepare().then(async () => {
   });
 
   let activeProductId: string | null = null;
+  let cycleInterval: NodeJS.Timeout | null = null;
+
+  const startRotation = async () => {
+    if (cycleInterval) clearInterval(cycleInterval);
+    
+    cycleInterval = setInterval(async () => {
+      try {
+        const products = await Product.find({ isActive: true }).lean();
+        console.log(`[Rotation] Active products found: ${products.length}`);
+        
+        if (products.length === 0) {
+          if (activeProductId !== null) {
+            console.log(`[Rotation] No active products. Going to IDLE.`);
+            activeProductId = null;
+            io.emit('productChanged', null);
+          }
+          return;
+        }
+
+        const currentIndex = products.findIndex(p => p.id === activeProductId);
+        const nextIndex = (currentIndex + 1) % products.length;
+        const nextProduct: any = products[nextIndex];
+        
+        console.log(`[Rotation] Advancing to: ${nextProduct.name} (${nextProduct.id})`);
+        
+        activeProductId = nextProduct.id;
+        const mappedProduct = { ...nextProduct, _id: nextProduct._id.toString() };
+        
+        io.emit('productChanged', mappedProduct);
+        io.emit('hardwareCommand', {
+          productLed: activeProductId,
+          fieldLeds: nextProduct.fields || []
+        });
+      } catch (err) {
+        console.error('Rotation error:', err);
+      }
+    }, 5000);
+  };
+
+  // Start the slideshow immediately
+  startRotation();
 
   io.on('connection', async (socket) => {
     console.log('Client connected:', socket.id);
@@ -58,15 +99,18 @@ app.prepare().then(async () => {
     socket.on('selectProduct', async (productId: string) => {
       activeProductId = productId;
       try {
-        const product = await Product.findOne({ id: productId }).lean();
+        const product: any = await Product.findOne({ id: productId }).lean();
         if (product) {
-          const mappedProduct = { ...product, _id: (product._id as any).toString() };
+          const mappedProduct = { ...product, _id: product._id.toString() };
           io.emit('productChanged', mappedProduct);
           
           io.emit('hardwareCommand', {
             productLed: productId,
             fieldLeds: product.fields || []
           });
+
+          // Reset the timer so the user gets a full 5s of the selected product
+          startRotation(); 
         }
       } catch (err) {
         console.error('Error on selectProduct:', err);
@@ -77,6 +121,8 @@ app.prepare().then(async () => {
        const products = await Product.find({}).lean();
        const mappedProducts = products.map(p => ({...p, _id: p._id.toString()}));
        io.emit('productsUpdated', mappedProducts);
+       // Refresh rotation to include any new items
+       startRotation();
     });
     
     socket.on('hardwareStatus', (status) => {

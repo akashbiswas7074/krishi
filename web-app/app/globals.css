@@ -240,3 +240,43 @@ label {
   box-shadow: 0 0 10px var(--accent-glow);
   transform: scale(1.2);
 }
+/* Cinematic Swipe Animations */
+@keyframes swipeIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+.tft-animate {
+  animation: swipeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.scanline-overlay {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+  animation: scanline 2s linear infinite;
+  z-index: 10;
+}
+
+.virtual-tft {
+  position: relative;
+  overflow: hidden;
+  border: 8px solid #334155;
+  border-radius: 12px;
+  width: 320px;
+  height: 240px;
+  background: #000;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+}
+
+.tft-content {
+  width: 100%;
+  height: 100%;
+}

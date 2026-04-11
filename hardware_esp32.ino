@@ -331,7 +331,12 @@ void updateScreen2(const char *name, const char *crops, int y25, int y26, int as
   digitalWrite(TFT_CS1, HIGH);
   digitalWrite(TFT_CS2, LOW); // Enable S2
 
-  tft2.fillScreen(ILI9341_BLACK);
+  // Cinematic Wipe Transition
+  for (int x = 0; x < 320; x += 16) {
+    tft2.fillRect(x, 0, 16, 240, ILI9341_BLACK);
+    tft2.drawFastVLine(x + 16, 0, 240, KRISHI_GREEN); // Scanning line
+    delay(10);
+  }
   
   // Header Panel
   tft2.fillRect(0, 0, 320, 50, KRISHI_DARK);

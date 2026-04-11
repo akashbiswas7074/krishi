@@ -23,7 +23,6 @@ export default function Dashboard() {
   const [formData, setFormData] = useState({
     name: '', crops: '', y25: '', y26: '', aspiration: '', ledPin: '', unit: 'Kg'
   });
-  const [isAutoCycle, setIsAutoCycle] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -65,19 +64,22 @@ export default function Dashboard() {
     };
   }, []);
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isAutoCycle && tab === 'control' && products.length > 1) {
-      interval = setInterval(() => {
-        const currentIndex = products.findIndex(p => p.id === activeProduct?.id);
-        const nextIndex = (currentIndex + 1) % products.length;
-        selectProduct(products[nextIndex].id);
-      }, 5000);
+  const toggleActiveProduct = async (p: IProduct) => {
+    const newStatus = !p.isActive;
+    try {
+      await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...p, isActive: newStatus })
+      });
+      if (socket) socket.emit('productsUpdated');
+    } catch (err) {
+      console.error('Failed to toggle product status:', err);
     }
-    return () => clearInterval(interval);
-  }, [isAutoCycle, tab, activeProduct, products]);
+  };
 
   const selectProduct = async (id: string) => {
+    // Manual activation override: reset timer and jump to this product
     if (socket && socket.connected) {
       socket.emit('selectProduct', id);
     }
@@ -193,54 +195,50 @@ export default function Dashboard() {
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', alignItems: 'center' }}>
         <button className="btn" style={{ background: tab==='control' ? 'var(--accent)' : 'transparent', border: '1px solid var(--glass-border)' }} onClick={() => setTab('control')}>Control Screens</button>
         <button className="btn" style={{ background: tab==='admin' ? 'var(--accent)' : 'transparent', border: '1px solid var(--glass-border)' }} onClick={() => setTab('admin')}>Add Product</button>
-        {tab === 'control' && (
-          <button 
-            className="btn" 
-            style={{ marginLeft: 'auto', background: isAutoCycle ? '#22c55e' : '#475569', display: 'flex', alignItems: 'center', gap: '8px' }}
-            onClick={() => setIsAutoCycle(!isAutoCycle)}
-          >
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: isAutoCycle ? '#fff' : '#94a3b8', boxShadow: isAutoCycle ? '0 0 8px #fff' : 'none' }}></div>
-            Auto Cycle (5s)
-          </button>
-        )}
       </div>
 
       {tab === 'control' && (
         <>
           <div className="preview-container" style={{ display: 'flex', gap: '1.5rem', marginBottom: '3rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-             <div className="virtual-tft" style={{ border: '8px solid #334155', borderRadius: '12px', overflow: 'hidden', width: '320px', height: '240px', background: '#000', position: 'relative', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
-                <div style={{ position: 'absolute', top: 5, right: 10, fontSize: '0.6rem', color: '#64748b', fontWeight: 'bold' }}>SCREEN 1 - IMAGE</div>
-                {activeProduct?.imageUrl ? (
-                  <img src={activeProduct.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="preview" />
-                ) : (
-                  <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>No Image</div>
-                )}
-             </div>
-
-             <div className="virtual-tft" style={{ border: '8px solid #334155', borderRadius: '12px', overflow: 'hidden', width: '320px', height: '240px', background: '#000', color: '#fff', position: 'relative', fontFamily: 'monospace', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
-                <div style={{ position: 'absolute', bottom: 5, right: 10, fontSize: '0.6rem', color: '#64748b', fontWeight: 'bold' }}>SCREEN 2 - DETAILS</div>
-                <div style={{ background: '#182828', height: '50px', padding: '10px', display: 'flex', alignItems: 'center' }}>
-                   <div style={{ fontSize: '1.5rem', fontWeight: 'bold', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{activeProduct?.name || 'Waiting...'}</div>
+             <div className="virtual-tft">
+                <div className="scanline-overlay"></div>
+                <div style={{ position: 'absolute', top: 5, right: 10, fontSize: '0.6rem', color: '#64748b', fontWeight: 'bold', zIndex: 20 }}>SCREEN 1 - IMAGE</div>
+                <div className="tft-content tft-animate" key={activeProduct?.id + '_s1'}>
+                  {activeProduct?.imageUrl ? (
+                    <img src={activeProduct.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="preview" />
+                  ) : (
+                    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>No Image</div>
+                  )}
                 </div>
-                <div style={{ padding: '10px 15px' }}>
-                   <div style={{ color: '#00FF00', fontSize: '1.2rem', marginBottom: '8px' }}>Crops: <span style={{ color: '#fff' }}>{activeProduct?.crops || '-'}</span></div>
-                   
-                   <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', paddingBottom: '8px' }}>
-                         <div style={{ color: '#2563eb', fontWeight: 'bold' }}>2025-26 Sales:</div>
-                         <div style={{ fontSize: '1.2rem' }}>{activeProduct?.y25?.toLocaleString() || 0} <span style={{fontSize: '0.8rem'}}>{activeProduct?.unit}</span></div>
-                      </div>
-                      
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', paddingBottom: '8px' }}>
-                         <div style={{ color: '#06b6d4', fontWeight: 'bold' }}>2026-27 Sales:</div>
-                         <div style={{ fontSize: '1.2rem' }}>{activeProduct?.y26?.toLocaleString() || 0} <span style={{fontSize: '0.8rem'}}>{activeProduct?.unit}</span></div>
-                      </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                         <div style={{ color: '#22c55e', fontWeight: 'bold' }}>Aspiration Target:</div>
-                         <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{activeProduct?.aspiration?.toLocaleString() || 0} <span style={{fontSize: '0.8rem'}}>{activeProduct?.unit}</span></div>
-                      </div>
-                   </div>
+             </div>
+ 
+             <div className="virtual-tft" style={{ color: '#fff', fontFamily: 'monospace' }}>
+                <div className="scanline-overlay"></div>
+                <div style={{ position: 'absolute', bottom: 5, right: 10, fontSize: '0.6rem', color: '#64748b', fontWeight: 'bold', zIndex: 20 }}>SCREEN 2 - DETAILS</div>
+                <div className="tft-content tft-animate" key={activeProduct?.id + '_s2'}>
+                  <div style={{ background: '#182828', height: '50px', padding: '10px', display: 'flex', alignItems: 'center' }}>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{activeProduct?.name || 'Waiting...'}</div>
+                  </div>
+                  <div style={{ padding: '10px 15px' }}>
+                    <div style={{ color: '#00FF00', fontSize: '1.2rem', marginBottom: '8px' }}>Crops: <span style={{ color: '#fff' }}>{activeProduct?.crops || '-'}</span></div>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', paddingBottom: '8px' }}>
+                          <div style={{ color: '#2563eb', fontWeight: 'bold' }}>2025-26 Sales:</div>
+                          <div style={{ fontSize: '1.2rem' }}>{activeProduct?.y25?.toLocaleString() || 0} <span style={{fontSize: '0.8rem'}}>{activeProduct?.unit}</span></div>
+                        </div>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', paddingBottom: '8px' }}>
+                          <div style={{ color: '#06b6d4', fontWeight: 'bold' }}>2026-27 Sales:</div>
+                          <div style={{ fontSize: '1.2rem' }}>{activeProduct?.y26?.toLocaleString() || 0} <span style={{fontSize: '0.8rem'}}>{activeProduct?.unit}</span></div>
+                        </div>
+  
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ color: '#22c55e', fontWeight: 'bold' }}>Aspiration Target:</div>
+                          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{activeProduct?.aspiration?.toLocaleString() || 0} <span style={{fontSize: '0.8rem'}}>{activeProduct?.unit}</span></div>
+                        </div>
+                    </div>
+                  </div>
                 </div>
              </div>
           </div>
@@ -250,35 +248,36 @@ export default function Dashboard() {
             <div 
               key={p.id} 
               className={`product-card ${activeProduct?.id === p.id ? 'active' : ''}`}
-              onClick={() => selectProduct(p.id)}
+              onClick={() => {
+                if (p.isActive) selectProduct(p.id);
+                else alert("Product must be marked as 'In Display' to show on screen.");
+              }}
+              style={{ position: 'relative' }}
             >
+              {p.isActive && (
+                <div style={{ position: 'absolute', top: -5, left: -5, width: 12, height: 12, background: '#22c55e', borderRadius: '50%', border: '2px solid #fff', boxShadow: '0 0 8px #22c55e' }}></div>
+              )}
               {p.imageUrl ? 
                 <img src={p.imageUrl} alt="product" /> : 
                 <div style={{ width: 60, height: 60, background: '#334155', borderRadius: 8 }}></div>
               }
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {p.name}
-                  {activeProduct?.id === p.id && (
-                    <span style={{ fontSize: '0.7rem', background: '#22c55e', padding: '2px 6px', borderRadius: '4px', color: 'white' }}>ACTIVE</span>
-                  )}
-                </div>
-                <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{p.crops} {p.unit ? `(${p.unit})` : ''}</div>
+                <div style={{ fontWeight: 'bold' }}>{p.name}</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Pin: {p.ledPin} | {p.crops}</div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: '90px' }}>
-                {activeProduct?.id !== p.id ? (
-                  <button 
-                    className="btn" 
-                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', background: 'var(--accent)' }} 
-                    onClick={(e) => { e.stopPropagation(); selectProduct(p.id); }}
-                  >Activate</button>
-                ) : (
-                  <button 
-                    className="btn" 
-                    disabled
-                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', background: '#22c55e', opacity: 1, cursor: 'default' }} 
-                  >Live ON</button>
-                )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: '100px' }}>
+                <button 
+                  className="btn" 
+                  style={{ 
+                    padding: '0.3rem 0.6rem', 
+                    fontSize: '0.8rem', 
+                    background: p.isActive ? '#ef4444' : '#22c55e',
+                    border: 'none'
+                  }} 
+                  onClick={(e) => { e.stopPropagation(); toggleActiveProduct(p); }}
+                >
+                  {p.isActive ? 'Exclude' : 'Include'} Display
+                </button>
                 <div style={{ display: 'flex', gap: '0.3rem' }}>
                   <button 
                      className="btn" 
