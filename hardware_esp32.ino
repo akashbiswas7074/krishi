@@ -215,19 +215,24 @@ void syncAllData() {
 
 void downloadImageToFS(String id) {
   String filename = "/" + id + ".jpg";
-  if (LittleFS.exists(filename)) return;
-
+  
+  // NOTE: We used to skip if it exists, but now we overwrite 
+  // to ensure any updated images (converted from WebP to JPEG) 
+  // on the dashboard are correctly reflected on the hardware.
+  
   String url = String(bitmapApiUrl) + id;
   WiFiClientSecure client;
   client.setInsecure();
   HTTPClient http;
+  
   if (http.begin(client, url)) {
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
-      File file = LittleFS.open(filename, "w");
+      File file = LittleFS.open(filename, "w"); // "w" will overwrite
       if (file) {
         http.writeToStream(&file);
         file.close();
+        Serial.println("Downloaded/Updated: " + filename);
       }
     }
     http.end();
