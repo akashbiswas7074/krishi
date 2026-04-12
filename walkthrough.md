@@ -17,60 +17,76 @@ This configuration achieves the best isolation. Your high-power 12V LEDs are com
 
 ---
 
-## 🖥️ Screen Data (Non-Conflict Range)
+## 🖥️ Master Pinout Table (ESP32-S3)
 
-We are using high-range pins to avoid any internal conflicts (Skipping 6 - 11).
+The dual screens share the data highway (SPI) but use separate chip-selects.
 
-| Feature | Screen 1 (Image) | Screen 2 (Details) | Note |
+| Feature | Shared / Common | Screen 1 (Visual) | Screen 2 (Data) |
 | :--- | :--- | :--- | :--- |
-| **VCC / LED** | **3.3V (Buck)** | **3.3V (Buck)** | **Powered by Buck (from 5V)** |
-| **GND** | **System GND** | **System GND** | Shared Ground |
-| **CS** (Chip Select) | **GPIO 44** | **GPIO 14** | Primary Screen Select |
-| **DC / RS** | **GPIO 21** | **GPIO 17** | Independent Logic |
-| **RESET** | **GPIO 8** | **GPIO 18** | Independent Reset |
-| **SCK** (Clock) | **GPIO 12** | **GPIO 12** | shared Data Highway |
-| **MOSI** (Data) | **GPIO 43** | **GPIO 43** | shared Data Highway |
+| **SCK (Clock)** | **GPIO 12** | — | — |
+| **MOSI (Data)** | **GPIO 43** | — | — |
+| **MISO** | **GPIO 13** | — | — |
+| **CS (Select)** | — | **GPIO 44** | **GPIO 14** |
+| **DC (Logic)** | — | **GPIO 21** | **GPIO 17** |
+| **RESET** | — | **GPIO 45** | **GPIO 18** |
 
 ---
 
-## 📟 Product LED Pin Mapping (12V Control)
+## 💡 12V LED Activation Pins
 
-These pins trigger the MOSFETs to switch the 12V ground for your lamps.
-
-| Product Name | ESP32-S3 Pin | physical Lamp |
-| :--- | :--- | :--- |
-| **GAINEXA** | **GPIO 1** | 12V LED Group |
-| **CENTURION EZ** | **GPIO 2** | 12V LED Group |
-| **ELECTRON** | **GPIO 3** | 12V LED Group |
-| **TRISKELE** | **GPIO 4** | 12V LED Group |
-| **KEVUKA / ZEVIGO** | **GPIO 5** | 12V LED Group |
-| **TRIDIUM** | **GPIO 15** | 12V LED Group |
-| **ARGYLE** | **GPIO 16** | 12V LED Group |
-| **BRUCIA** | **GPIO 19** | 12V LED Group |
-| **LARVIRON** | **GPIO 20** | 12V LED Group |
+| Product Name | Pin (To MOSFET Gate) | Product Name | Pin (To MOSFET Gate) |
+| :--- | :--- | :--- | :--- |
+| **GAINEXA** | **GPIO 1** | **TRIDIUM** | **GPIO 15** |
+| **CENTURION EZ** | **GPIO 2** | **ARGYLE** | **GPIO 16** |
+| **ELECTRON** | **GPIO 3** | **BRUCIA** | **GPIO 19** |
+| **TRISKELE** | **GPIO 4** | **LARVIRON** | **GPIO 20** |
+| **KEVUKA** | **GPIO 5** | — | — |
 
 ---
 
-## 📐 Final Wiring Diagram
+## 📐 Circuit Blueprint (Tri-Voltage)
 
 ```mermaid
 graph TD
-    PS_12V[12V Power] --> LEDS[12V LED Clusters]
+    %% Power Supplies
+    PS_12V[12V Power Supply] --> Cap12V((1000uF Cap))
+    Cap12V --> LEDS[12V LED Clusters +]
     
-    PS_5V[5V Power] --> ESP[ESP32-S3 DevKit]
-    PS_5V --> Buck[Buck Converter]
+    PS_5V[5V Power Supply] --> Cap5V((100uF Cap))
+    Cap5V --> ESP[ESP32-S3 DevKit]
+    Cap5V --> Buck[Buck Converter]
     
-    Buck -- "Adjust to 3.3V" --> Screen1[TFT 1 VCC]
-    Buck -- "Adjust to 3.3V" --> Screen2[TFT 2 VCC]
+    %% Screens
+    Buck -- "Adjust to 3.3V" --> Scr1[Screen 1: Product Image]
+    Buck -- "Adjust to 3.3V" --> Scr2[Screen 2: Data & Stats]
     
-    ESP -- Logic Signals --> Screen1
-    ESP -- Logic Signals --> Screen2
-    ESP -- pin1..20 --> MOSFETArray[MOSFET Switches]
-    MOSFETArray -- Switches GND --> LEDS
+    %% Logic Connections
+    ESP -- "SPI + CS(GPIO 44)" --> Scr1
+    ESP -- "SPI + CS(GPIO 14)" --> Scr2
     
-    ESP -- GND --- PS_12V
-    ESP -- GND --- PS_5V
-    ESP -- GND --- Buck
+    %% MOSFET Control
+    ESP -- "Signal (GPIO 1..20)" --> Resists[220 Ohm Resistors]
+    Resists --> MOSFETs[MOSFET Array: Gate]
+    
+    MOSFETs -- "Drain" --> LEDS_GND[12V LED Clusters -]
+    MOSFETs -- "Source" --> GND[Common GND]
+    
+    %% Shared Ground
+    ESP -- GND --- GND
+    PS_12V -- GND --- GND
+    PS_5V -- GND --- GND
+    Buck -- GND --- GND
 ```
+
+---
+
+## ⚙️ Component Specifications
+
+| Component | Recommended Value | Connection Tip |
+| :--- | :--- | :--- |
+| **MOSFET** | **IRFZ44N** (N-Channel) | Drain to LED (-), Source to GND |
+| **Smoothing Cap** | **1000 µF (12V) / 100 µF (5V)** | Watch polarity (Stripe to GND) |
+| **Gate Resistor** | **220 Ω** | Place between ESP Pin & MOSFET Gate |
+| **Buck Converter** | **LM2596** | **CRITICAL**: Set to 3.3V before connecting screens |
 
 **Everything is now perfectly isolated. Your logic runs on 5V, your screens on 3.3V, and your diorama on 12V!**

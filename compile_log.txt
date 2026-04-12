@@ -1,0 +1,28 @@
+/home/akashbiswas7797/Desktop/projects/krisi/krishi_firmware/krishi_firmware.ino: In function 'void syncAllData()':
+/home/akashbiswas7797/Desktop/projects/krisi/krishi_firmware/krishi_firmware.ino:199:44: error: no match for 'operator|' (operand types are 'String' and 'const char [3]')
+  199 |         prod.unit = p["unit"].as<String>() | "Kg";
+      |                     ~~~~~~~~~~~~~~~~~~~~~~ ^ ~~~~
+      |                                         |    |
+      |                                         |    const char [3]
+      |                                         String
+
+[92mUsed library[0m         [92mVersion[0m [90mPath[0m
+[93mAdafruit GFX Library[0m 1.12.6  [90m/home/akashbiswas7797/Arduino/libraries/Adafruit_GFX_Library[0m
+[93mAdafruit BusIO[0m       1.17.4  [90m/home/akashbiswas7797/Arduino/libraries/Adafruit_BusIO[0m
+[93mWire[0m                 3.3.7   [90m/home/akashbiswas7797/.arduino15/packages/esp32/hardware/esp32/3.3.7/libraries/Wire[0m
+[93mSPI[0m                  3.3.7   [90m/home/akashbiswas7797/.arduino15/packages/esp32/hardware/esp32/3.3.7/libraries/SPI[0m
+[93mAdafruit ILI9341[0m     1.6.3   [90m/home/akashbiswas7797/Arduino/libraries/Adafruit_ILI9341[0m
+[93mArduinoJson[0m          7.4.3   [90m/home/akashbiswas7797/Arduino/libraries/ArduinoJson[0m
+[93mHTTPClient[0m           3.3.7   [90m/home/akashbiswas7797/.arduino15/packages/esp32/hardware/esp32/3.3.7/libraries/HTTPClient[0m
+[93mNetworking[0m           3.3.7   [90m/home/akashbiswas7797/.arduino15/packages/esp32/hardware/esp32/3.3.7/libraries/Network[0m
+[93mNetworkClientSecure[0m  3.3.7   [90m/home/akashbiswas7797/.arduino15/packages/esp32/hardware/esp32/3.3.7/libraries/NetworkClientSecure[0m
+[93mTJpg_Decoder[0m         1.1.0   [90m/home/akashbiswas7797/Arduino/libraries/TJpg_Decoder[0m
+[93mFS[0m                   3.3.7   [90m/home/akashbiswas7797/.arduino15/packages/esp32/hardware/esp32/3.3.7/libraries/FS[0m
+[93mLittleFS[0m             3.3.7   [90m/home/akashbiswas7797/.arduino15/packages/esp32/hardware/esp32/3.3.7/libraries/LittleFS[0m
+[93mSPIFFS[0m               3.3.7   [90m/home/akashbiswas7797/.arduino15/packages/esp32/hardware/esp32/3.3.7/libraries/SPIFFS[0m
+[93mSD[0m                   3.3.7   [90m/home/akashbiswas7797/.arduino15/packages/esp32/hardware/esp32/3.3.7/libraries/SD[0m
+[93mWiFi[0m                 3.3.7   [90m/home/akashbiswas7797/.arduino15/packages/esp32/hardware/esp32/3.3.7/libraries/WiFi[0m
+
+[92mUsed platform[0m [92mVersion[0m [90mPath[0m
+[93mesp32:esp32[0m   3.3.7   [90m/home/akashbiswas7797/.arduino15/packages/esp32/hardware/esp32/3.3.7[0m
+Error during build: exit status 1
