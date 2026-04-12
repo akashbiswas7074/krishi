@@ -38,6 +38,7 @@ const String bitmapApiUrl =
 #define KRISHI_GREEN 0x07E0
 #define KRISHI_DARK 0x18E3
 #define ILI9341_GREY 0x5AEB
+#define SELECT_BUTTON_PIN 0  // Boot button on most S3 kits
 
 Adafruit_ILI9341 tft1 = Adafruit_ILI9341(TFT_CS1, TFT_DC1, TFT_RST1);
 Adafruit_ILI9341 tft2 = Adafruit_ILI9341(TFT_CS2, TFT_DC2, TFT_RST2);
@@ -71,6 +72,10 @@ bool isSlideshowActive = true;
 int slideshowIndex = 0;
 bool isSyncing = false;
 
+// Selection Button State
+unsigned long lastButtonPress = 0;
+const unsigned long debounceDelay = 300; 
+
 // --- JPEG CALLBACK ---
 bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h,
                 uint16_t *bitmap) {
@@ -102,6 +107,8 @@ void setup() {
 
   connectToWifi();
   syncAllData();
+
+  pinMode(SELECT_BUTTON_PIN, INPUT_PULLUP);
 }
 
 void loop() {
@@ -117,7 +124,24 @@ void loop() {
     fetchServerStatus();
   }
 
-  // 2. DISPLAY LOGIC
+  // 2. HARDWARE BUTTON LOGIC (GPIO 0)
+  if (digitalRead(SELECT_BUTTON_PIN) == LOW) {
+    if (currentMillis - lastButtonPress > debounceDelay) {
+      lastButtonPress = currentMillis;
+      Serial.println("Button Pressed: Cycling Product...");
+      
+      if (activeProducts.size() > 0) {
+        // Toggle Manual Mode
+        isSlideshowActive = false; 
+        
+        slideshowIndex = (slideshowIndex + 1) % activeProducts.size();
+        displayProduct(activeProducts[slideshowIndex]);
+        lastSlideshowStep = currentMillis; // Reset slideshow timer
+      }
+    }
+  }
+
+  // 3. DISPLAY LOGIC
   if (isSlideshowActive) {
     // SLIDESHOW MODE: Cycle through activeProducts list
     if (activeProducts.size() > 0) {

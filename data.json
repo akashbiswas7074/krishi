@@ -8,7 +8,7 @@
     "aspiration": 90,
     "fields": ["paddy", "jute", "corn"],
     "imageUrl": null,
-    "isActive": false
+    "isActive": true
   },
   {
     "id": "centurion",
