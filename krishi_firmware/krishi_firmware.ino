@@ -214,11 +214,13 @@ void syncAllData() {
 
       JsonArray arr = doc.as<JsonArray>();
       activeProducts.clear();
+      int activeCount = 0;
 
       for (JsonObject p : arr) {
         if (!p["isActive"])
           continue; // Only sync active ones for display memory efficiency
 
+        activeCount++;
         ProductData prod;
         prod.id = p["id"].as<String>();
         prod.name = p["name"].as<String>();
@@ -232,6 +234,8 @@ void syncAllData() {
         activeProducts.push_back(prod);
         downloadImageToFS(prod.id);
       }
+      Serial.print("Sync Complete. Found active products: ");
+      Serial.println(activeCount);
     }
     http.end();
   }
@@ -262,10 +266,21 @@ void downloadImageToFS(String id) {
       if (file) {
         http.writeToStream(&file);
         file.close();
-        Serial.println("Downloaded/Updated: " + filename);
+        Serial.print("Downloaded/Updated: ");
+        Serial.println(filename);
+      } else {
+        Serial.print("Error: Could not open file for writing: ");
+        Serial.println(filename);
       }
+    } else {
+      Serial.print("Error: Download failed for ");
+      Serial.print(id);
+      Serial.print(" httpCode: ");
+      Serial.println(httpCode);
     }
     http.end();
+  } else {
+    Serial.println("Error: HTTP Begin failed for image fetch");
   }
 }
 
@@ -318,6 +333,13 @@ void displayProduct(ProductData p) {
 
   // LED
   if (p.ledPin > 0) {
+    // SAFETY GUARD: Never use USB Pins 19 and 20 for LEDs
+    if (p.ledPin == 19 || p.ledPin == 20) {
+      Serial.print("WARNING: Skipping LED for ");
+      Serial.print(p.name);
+      Serial.println(" (Restricted USB Pin 19/20)");
+      return;
+    }
     pinMode(p.ledPin, OUTPUT);
     digitalWrite(p.ledPin, HIGH);
     lastDynamicLedPin = p.ledPin;
