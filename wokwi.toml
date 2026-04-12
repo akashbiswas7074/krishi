@@ -1,0 +1,4 @@
+[wokwi]
+version = 1
+elf = "build/krishi_firmware.elf"
+firmware = "build/krishi_firmware.bin"

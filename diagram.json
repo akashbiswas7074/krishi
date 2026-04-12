@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "author": "Antigravity",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-s3-devkitc-1",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": { "env": "arduino-1.0" }
+    },
+    {
+      "type": "wokwi-ili9341",
+      "id": "tft1",
+      "top": 150,
+      "left": 250,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-ili9341",
+      "id": "tft2",
+      "top": 150,
+      "left": -250,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn1",
+      "top": -80,
+      "left": 100,
+      "attrs": { "color": "blue", "key": "b" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led2",
+      "top": -80,
+      "left": -20,
+      "attrs": { "color": "green" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r2",
+      "top": -40,
+      "left": -20,
+      "attrs": { "value": "220" }
+    }
+  ],
+  "connections": [
+    [ "esp:3V3", "tft1:VCC", "red", [ "v0" ] ],
+    [ "esp:GND", "tft1:GND", "black", [ "v0" ] ],
+    [ "esp:44", "tft1:CS", "green", [ "v0" ] ],
+    [ "esp:45", "tft1:RESET", "orange", [ "v0" ] ],
+    [ "esp:21", "tft1:DC", "yellow", [ "v0" ] ],
+    [ "esp:43", "tft1:MOSI", "blue", [ "v0" ] ],
+    [ "esp:12", "tft1:SCK", "purple", [ "v0" ] ],
+    [ "esp:13", "tft1:MISO", "cyan", [ "v0" ] ],
+    [ "tft1:LED", "esp:3V3", "red", [ "v0" ] ],
+
+    [ "esp:3V3", "tft2:VCC", "red", [ "v0" ] ],
+    [ "esp:GND", "tft2:GND", "black", [ "v0" ] ],
+    [ "esp:14", "tft2:CS", "green", [ "v0" ] ],
+    [ "esp:18", "tft2:RESET", "orange", [ "v0" ] ],
+    [ "esp:17", "tft2:DC", "yellow", [ "v0" ] ],
+    [ "esp:43", "tft2:MOSI", "blue", [ "v0" ] ],
+    [ "esp:12", "tft2:SCK", "purple", [ "v0" ] ],
+    [ "esp:13", "tft2:MISO", "cyan", [ "v0" ] ],
+    [ "tft2:LED", "esp:3V3", "red", [ "v0" ] ],
+
+    [ "esp:0", "btn1:2.l", "green", [ "v0" ] ],
+    [ "esp:GND", "btn1:1.l", "black", [ "v0" ] ],
+
+    [ "esp:2", "r2:1", "green", [ "v0" ] ],
+    [ "r2:2", "led2:A", "green", [ "v0" ] ],
+    [ "led2:C", "esp:GND", "black", [ "v0" ] ]
+  ],
+  "dependencies": {}
+}
