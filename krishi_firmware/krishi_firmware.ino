@@ -20,9 +20,9 @@ const String bitmapApiUrl =
     "https://krishi-zxek.vercel.app/api/product-bitmap?id=";
 
 // --- PIN CONFIG (ESP32-S3) ---
-#define TFT_SCK 12
-#define TFT_MOSI 11
-#define TFT_MISO 13
+#define TFT_SCK 12    // Primary SPI SCK
+#define TFT_MOSI 11   // Primary SPI MOSI
+#define TFT_MISO 13   // Primary SPI MISO (Optional for OLED)
 
 // Screen 1 (Image)
 #define TFT_CS1 10
@@ -40,8 +40,9 @@ const String bitmapApiUrl =
 #define ILI9341_GREY 0x5AEB
 #define SELECT_BUTTON_PIN 0  // Boot button on most S3 kits
 
-Adafruit_ILI9341 tft1 = Adafruit_ILI9341(TFT_CS1, TFT_DC1, TFT_RST1);
-Adafruit_ILI9341 tft2 = Adafruit_ILI9341(TFT_CS2, TFT_DC2, TFT_RST2);
+// Link the displays to the remapped global SPI object via constructor
+Adafruit_ILI9341 tft1 = Adafruit_ILI9341(&SPI, TFT_DC1, TFT_CS1, TFT_RST1);
+Adafruit_ILI9341 tft2 = Adafruit_ILI9341(&SPI, TFT_DC2, TFT_CS2, TFT_RST2);
 
 // --- DATA STRUCTURES ---
 struct ProductData {
@@ -96,11 +97,12 @@ void setup() {
 
   SPI.begin(TFT_SCK, TFT_MISO, TFT_MOSI);
 
-  tft1.begin();
+  // SPI was already mapped in begin(SCK, MISO, MOSI)
+  tft1.begin(20000000); 
   tft1.setRotation(1);
   tft1.fillScreen(ILI9341_WHITE);
 
-  tft2.begin();
+  tft2.begin(20000000);
   tft2.setRotation(1);
   tft2.fillScreen(ILI9341_BLACK);
 

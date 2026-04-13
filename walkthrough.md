@@ -54,10 +54,10 @@ The dual screens share the data highway (SPI) but use separate chip-selects.
 | **ELECTRON** | 8 | VEGETABLE | 5 |
 | **TRISKELE** | 9 | SUGARCANE | 15 |
 | **KEVUKA / ZEVIGO** | 16 | PADDY | 4 |
-| **TRIDIUM** | 33 | PADDY / POTATO / VEGETABLE | 4, 34, 5 |
-| **ARGYLE** | 35 | VEGETABLE / PADDY | 5, 4 |
-| **BRUCIA** | 36 | MAIZE | 37 |
-| **LARVIRON** | 38 | PADDY | 4 |
+| **TRIDIUM** | 38 | PADDY / POTATO / VEGETABLE | 4, 39, 5 |
+| **ARGYLE** | 40 | VEGETABLE / PADDY | 5, 4 |
+| **BRUCIA** | 41 | MAIZE | 42 |
+| **LARVIRON** | 2 | PADDY | 4 |
 
 ---
 
@@ -69,8 +69,8 @@ The dual screens share the data highway (SPI) but use separate chip-selects.
 | **VEGETABLE** | **GPIO 5** | Field B |
 | **JUTE** | **GPIO 7** | Field C |
 | **SUGARCANE** | **GPIO 15** | Field D |
-| **POTATO** | **GPIO 34** | Field E |
-| **MAIZE** | **GPIO 37** | Field F |
+| **POTATO** | **GPIO 39** | Field E |
+| **MAIZE** | **GPIO 42** | Field F |
 
 ---
 
@@ -93,8 +93,8 @@ graph TD
     SPI_BUS --- Scr1[Screen 1: Visuals]
     SPI_BUS --- Scr2[Screen 2: Data]
     
-    ESP -- "CS(10) / DC(21) / RST(45)" --> Scr1
-    ESP -- "CS(14) / DC(17) / RST(18)" --> Scr2
+    ESP -- "CS(10) / DC(21) / RST(47)" --> Scr1
+    ESP -- "CS(14) / DC(17) / RST(48)" --> Scr2
     
     %% Type 1: 5V Status LEDs (Control Panel)
     ESP -- "GPIO 2..38" --> Res5V[Resistor 220Ω]

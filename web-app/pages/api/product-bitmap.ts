@@ -24,29 +24,55 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const imageRes = await fetch(product.imageUrl);
+    let finalUrl = product.imageUrl;
+    
+    // Cloudinary Smart Optimization: Transform to 320x240 JPEG on the CDN side
+    if (finalUrl.includes('cloudinary.com')) {
+      // Ensure https protocol
+      if (finalUrl.startsWith('//')) finalUrl = 'https:' + finalUrl;
+      
+      // Inject transformation flags: w_320,h_240,c_fill,f_jpg,q_auto
+      // Works by replacing '/upload/' with '/upload/w_320,h_240,c_fill,f_jpg,q_auto/'
+      finalUrl = finalUrl.replace('/upload/', '/upload/w_320,h_240,c_fill,f_jpg,q_auto/');
+    }
+
+    console.log(`🔄 Fetching Image [${id}]: ${finalUrl}`);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+    const imageRes = await fetch(finalUrl, { signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (!imageRes.ok) throw new Error(`Fetch failed: ${imageRes.statusText}`);
+
     const arrayBuffer = await imageRes.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Process image: resize to 320x240 for TFT (contain mode to fit full image)
+    // Final safety resize for ESP32 (in case Cloudinary trans fails or it's a non-cloudinary URL)
     const processed = await sharp(buffer)
       .resize(320, 240, { 
         fit: 'contain',
         background: { r: 0, g: 0, b: 0 }
       })
       .jpeg({ 
-        quality: 40, // Highly compressed for ESP32 speed
-        mozjpeg: true, // Extra optimization for small file sizes
-        progressive: false, // Baseline for microcontrollers
+        quality: 40, 
+        mozjpeg: true, 
+        progressive: false, 
         chromaSubsampling: '4:2:0' 
       })
       .toBuffer();
 
+    console.log(`✅ Image Ready [${id}]: ${processed.length} bytes`);
     res.setHeader('Content-Type', 'image/jpeg');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.send(processed);
   } catch (error) {
-    console.error('Image processing error:', error);
-    res.status(500).json({ error: 'Failed to process image' });
+    console.error(`❌ Image Error [${id}]:`, error);
+    // Return blank fallback on error
+    const blank = await sharp({
+      create: { width: 320, height: 240, channels: 3, background: { r: 50, g: 0, b: 0 } }
+    }).jpeg().toBuffer();
+    res.setHeader('Content-Type', 'image/jpeg').send(blank);
   }
 }

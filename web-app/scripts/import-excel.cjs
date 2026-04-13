@@ -51,7 +51,7 @@ async function run() {
     const globalPinPool = [
         2, 4, 5, 6, 7, 8, 9, 
         15, 16, 
-        33, 34, 35, 36, 37, 38, 39, 40, 41, 42
+        38, 39, 40, 41, 42 // Removed 33, 34 (Not on your physical headers)
     ];
     let poolIdx = 0;
 
