@@ -260,7 +260,6 @@ export default function Dashboard() {
     const payload: any = {
       id: editingProductId || ('prod_' + Date.now()),
       name: formData.name,
-      crops: formData.crops,
       y25: Number(formData.y25),
       y26: Number(formData.y26),
       aspiration: Number(formData.aspiration),
