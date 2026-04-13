@@ -299,19 +299,57 @@ void fetchServerStatus() {
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
       String payload = http.getString();
-      DynamicJsonDocument doc(2048);
+      // Increased buffer to handle product list sync
+      DynamicJsonDocument doc(16384); 
       deserializeJson(doc, payload);
 
       bool remoteSlideshowStatus = doc["isSlideshowActive"];
-      const char *remoteFocusedId = doc["focusedProductId"];
-
-      // Detect Mode Change
+      
+      // 1. Detect Mode Change & Reset Timer
       if (isSlideshowActive != remoteSlideshowStatus) {
         isSlideshowActive = remoteSlideshowStatus;
-        Serial.print("Mode Changed: ");
-        Serial.println(isSlideshowActive ? "SLIDESHOW" : "FIXED");
+        if (isSlideshowActive) {
+          lastSlideshowStep = millis(); // Reset timer to scroll immediately
+          Serial.println("Mode: SLIDESHOW (Timer Reset)");
+        } else {
+          Serial.println("Mode: FIXED");
+        }
       }
 
+      // 2. LIVE SYNC: Update activeProducts list from server
+      if (doc.containsKey("activeProducts")) {
+        JsonArray arr = doc["activeProducts"].as<JsonArray>();
+        activeProducts.clear();
+        
+        for (JsonObject p : arr) {
+          ProductData prod;
+          prod.id = p["id"].as<String>();
+          prod.name = p["name"].as<String>();
+          prod.crops = p["crops"].as<String>();
+          prod.y25 = p["y25"];
+          prod.y26 = p["y26"];
+          prod.aspiration = p["aspiration"];
+          prod.unit = p["unit"] | "Kg";
+          prod.ledPin = p["ledPin"] | 0;
+          
+          JsonArray pins2 = p["ledPins2"].as<JsonArray>();
+          for (int pin : pins2) {
+            prod.ledPins2.push_back(pin);
+          }
+
+          activeProducts.push_back(prod);
+
+          // Background check: Do we have the image for this new product?
+          String filename = "/" + prod.id + ".jpg";
+          if (!LittleFS.exists(filename)) {
+            Serial.print("New Product Detected! Downloading: ");
+            Serial.println(prod.id);
+            downloadImageToFS(prod.id);
+          }
+        }
+      }
+
+      // 3. Handle Focused Product
       if (!isSlideshowActive && doc["focusedProductId"].is<const char *>()) {
         focusedProductId = doc["focusedProductId"].as<String>();
       } else {

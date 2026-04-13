@@ -28,7 +28,7 @@ The dual screens share the data highway (SPI) but use separate chip-selects.
 | **MISO** | **GPIO 13** | — | — |
 | **CS (Select)** | — | **GPIO 10** | **GPIO 14** |
 | **DC (Logic)** | — | **GPIO 21** | **GPIO 17** |
-| **RESET** | — | **GPIO 38** | - |
+| **RESET** | — | **GPIO 45** | **GPIO 18** |
 
 ---
 
