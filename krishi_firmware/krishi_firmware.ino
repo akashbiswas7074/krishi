@@ -24,15 +24,15 @@ const String bitmapApiUrl =
 #define TFT_MOSI 11   // Primary SPI MOSI
 #define TFT_MISO 13   // Primary SPI MISO (Optional for OLED)
 
-// Screen 1 (Image)
-#define TFT_CS1 39  // Safe Pin (Previously 43 conflicted with Serial TX)
-#define TFT_DC1 21
-#define TFT_RST1 47  // Safe pin (Previously 1 caused UART conflict)
+// Screen 1 (Visual)
+#define TFT_CS1  15  // SAFE (Avoids Internal Flash conflict)
+#define TFT_DC1  21
+#define TFT_RST1 47
 
 // Screen 2 (Details)
-#define TFT_CS2 14
-#define TFT_DC2 17
-#define TFT_RST2 46  // Safe pin (Previously 48 was the on-board RGB LED)
+#define TFT_CS2  14
+#define TFT_DC2  17
+#define TFT_RST2 45  // SAFE (Avoids RGB LED conflict on 48)
 
 // --- DISPLAY COLOR THEME ---
 #define KRISHI_GREEN 0x07E0
@@ -95,14 +95,14 @@ void setup() {
     Serial.println("LittleFS Mount Failed");
   }
 
-  // 1. Force both CS pins HIGH immediately to de-select from SPI bus
+  // 1. Force CS pins HIGH immediately
   pinMode(TFT_CS1, OUTPUT);
   pinMode(TFT_CS2, OUTPUT);
   digitalWrite(TFT_CS1, HIGH);
   digitalWrite(TFT_CS2, HIGH);
 
   // 2. Hardware Reset Pulse
-  pinMode(TFT_RST1, OUTPUT);
+  pinMode(TFT_RST1, OUTPUT); 
   pinMode(TFT_RST2, OUTPUT);
   digitalWrite(TFT_RST1, LOW);
   digitalWrite(TFT_RST2, LOW);
@@ -114,13 +114,25 @@ void setup() {
   SPI.begin(TFT_SCK, TFT_MISO, TFT_MOSI);
 
   // SPI was already mapped in begin(SCK, MISO, MOSI)
+  Serial.println("📺 Initializing Screen 1...");
   tft1.begin(20000000); 
   tft1.setRotation(1);
-  tft1.fillScreen(ILI9341_WHITE);
+  tft1.fillScreen(ILI9341_CYAN); // Use Cyan instead of White to see if fillScreen works
+  tft1.setCursor(20, 100);
+  tft1.setTextColor(ILI9341_BLACK);
+  tft1.setTextSize(2);
+  tft1.print("SCREEN 1 ACTIVE");
+  tft1.setCursor(20, 130);
+  tft1.print("WAITING FOR IMAGE...");
 
+  Serial.println("📺 Initializing Screen 2...");
   tft2.begin(20000000);
   tft2.setRotation(1);
   tft2.fillScreen(ILI9341_BLACK);
+  tft2.setCursor(20, 100);
+  tft2.setTextColor(ILI9341_GREEN);
+  tft2.setTextSize(2);
+  tft2.print("SCREEN 2 ACTIVE");
 
   TJpgDec.setJpgScale(1);
   TJpgDec.setCallback(tft_output);
@@ -437,8 +449,20 @@ void displayProduct(ProductData p) {
 
 void drawLocalImage(const char *id) {
   String filename = "/" + String(id) + ".jpg";
-  if (!LittleFS.exists(filename))
+  Serial.print("🔍 Checking LittleFS for: ");
+  Serial.println(filename);
+
+  if (!LittleFS.exists(filename)) {
+    Serial.println("⚠️ Image NOT FOUND in LittleFS. Requesting sync...");
+    tft1.fillScreen(ILI9341_WHITE);
+    tft1.setCursor(10, 100);
+    tft1.setTextColor(ILI9341_RED);
+    tft1.setTextSize(2);
+    tft1.print("IMAGE NOT FOUND:");
+    tft1.setCursor(10, 130);
+    tft1.print(filename);
     return;
+  }
 
   tft1.fillScreen(ILI9341_WHITE);
   

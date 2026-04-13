@@ -45,19 +45,13 @@ async function run() {
     const startIdx = data[0][' Budget (Bengal & Bihar)'] === 'Product Name' ? 1 : 0;
     const itemsToImport = data.slice(startIdx);
 
-  // Ultra-Safe Pin Pool (excluding screens, UART, USB, and boot)
-  // Excluded: 0 (BOOT), 1 (TXD0), 3 (RXD0), 19, 20 (USB), 43, 44 (UART), 45, 46 (Log/Strap), 39 (Screen1 CS)
+  // Ultra-Safe Pin Pool (excluding screen pins and reserved IOs)
   const globalPinPool = [
-      2, 4, 5, 6, 7, 8, 9, 
-      15, 16, 
-      38, 40, 41, 42 // Removed 33, 34, 39
+      2, 4, 5, 6, 7, 8, 9, 16, 18, 
+      33, 34, 35, 36, 37, 38, 40, 41, 42
   ];
     let poolIdx = 0;
-
-    // Track shared crop pins to avoid duplication across different products
-    const cropToPinMap = {};
-
-    console.log(`Using safe global pin pool: ${globalPinPool.join(', ')}`);
+    const cropToPinMap = {}; // RE-ENABLED for efficiency
 
     for (let i = 0; i < itemsToImport.length; i++) {
         const item = itemsToImport[i];
@@ -75,25 +69,22 @@ async function run() {
         const ledPin = globalPinPool[poolIdx % globalPinPool.length];
         poolIdx++;
 
-        // 2. Parse crops and assign pins (REUSE if crop name already has an assigned pin)
+        // 2. Parse crops and assign pins (REUSING pins for the same crop to save space)
         const individualCrops = rawCrops.split('/').map(s => s.trim()).filter(s => s !== '');
         const cropPins = [];
         const ledPins2 = [];
 
         for (const cropName of individualCrops) {
             let assignedPin;
-            
             if (cropToPinMap[cropName]) {
-                // Reuse existing pin for this crop
                 assignedPin = cropToPinMap[cropName];
-                console.log(` - Reusing Pin ${assignedPin} for Crop: ${cropName}`);
             } else {
-                // Assign a new pin from the pool for this new crop
                 assignedPin = globalPinPool[poolIdx % globalPinPool.length];
                 cropToPinMap[cropName] = assignedPin;
                 poolIdx++;
-                console.log(` - Assigning NEW Pin ${assignedPin} for Crop: ${cropName}`);
             }
+            
+            console.log(` - Product ${name} | Crop ${cropName} -> Pin ${assignedPin}`);
             
             cropPins.push({ cropName, pin: assignedPin });
             ledPins2.push(assignedPin);
@@ -124,7 +115,6 @@ async function run() {
     }
 
     console.log(`\nImport Complete.`);
-    console.log(`- Unique Crops Mapped: ${Object.keys(cropToPinMap).length}`);
     console.log(`- Total Unique Pins Consumed: ${poolIdx}`);
     
     process.exit(0);
