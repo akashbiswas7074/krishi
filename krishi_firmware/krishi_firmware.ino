@@ -32,7 +32,7 @@ const String bitmapApiUrl =
 // Screen 2 (Details)
 #define TFT_CS2 14
 #define TFT_DC2 17
-#define TFT_RST2 48  // Safe pin (Previously 3 caused UART conflict)
+#define TFT_RST2 46  // Safe pin (Previously 48 was the on-board RGB LED)
 
 // --- DISPLAY COLOR THEME ---
 #define KRISHI_GREEN 0x07E0
