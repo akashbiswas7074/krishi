@@ -38,13 +38,26 @@ The dual screens share the data highway (SPI) but use separate chip-selects.
 | :--- | :--- | :--- | :--- |
 | **GAINEXA** | 1 | PADDY / VEGETABLE | 2, 3 |
 | **CENTURION EZ** | 4 | JUTE | 5 |
-| **ELECTRON** | 6 | VEGETABLE | 7 |
-| **TRISKELE** | 8 | SUGARCANE | 9 |
-| **KEVUKA / ZEVIGO** | 15 | PADDY | 16 |
-| **TRIDIUM** | 33 | PADDY / POTATO / VEGETABLE | 34, 35, 36 |
-| **ARGYLE** | 37 | VEGETABLE / PADDY | 38, 39 |
-| **BRUCIA** | 40 | MAIZE | 41 |
-| **LARVIRON** | 42 | PADDY | 44 |
+| **ELECTRON** | 6 | VEGETABLE | 3 |
+| **TRISKELE** | 7 | SUGARCANE | 8 |
+| **KEVUKA / ZEVIGO** | 9 | PADDY | 2 |
+| **TRIDIUM** | 15 | PADDY / POTATO / VEGETABLE | 2, 16, 3 |
+| **ARGYLE** | 33 | VEGETABLE / PADDY | 3, 2 |
+| **BRUCIA** | 34 | MAIZE | 35 |
+| **LARVIRON** | 36 | PADDY | 2 |
+
+---
+
+## 🌾 Crop Master Pin Table (Diorama Areas)
+
+| Crop Name | Logic Pin (12V Rail) | Physical Layer |
+| :--- | :--- | :--- |
+| **PADDY** | **GPIO 2** | Field A |
+| **VEGETABLE** | **GPIO 3** | Field B |
+| **JUTE** | **GPIO 5** | Field C |
+| **SUGARCANE** | **GPIO 8** | Field D |
+| **POTATO** | **GPIO 16** | Field E |
+| **MAIZE** | **GPIO 35** | Field F |
 
 ---
 

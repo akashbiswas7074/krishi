@@ -46,18 +46,19 @@ async function run() {
     const itemsToImport = data.slice(startIdx);
 
     // Global Pin Pool for ESP32-S3 (excluding screens, critical UART, and restricted pins)
-    // Screens: 10, 11, 12, 13, 14, 17, 18, 21, 43, 45
-    // Restricted: 0 (boot), 19, 20 (USB), 46 (Log)
-    // Available safe pool:
+    // Screens: 10, 11, 12, 13, 14, 17, 18, 21, 43, 45 (Updated for S3 Wiring Diagram)
     const globalPinPool = [
         1, 2, 3, 4, 5, 6, 7, 8, 9, 
         15, 16, 
         33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 
-        44 // RX0 (as a last resort if needed)
+        44 // RX0
     ];
     let poolIdx = 0;
 
-    console.log(`Using safe pin pool: ${globalPinPool.join(', ')}`);
+    // Track shared crop pins to avoid duplication across different products
+    const cropToPinMap = {};
+
+    console.log(`Using safe global pin pool: ${globalPinPool.join(', ')}`);
 
     for (let i = 0; i < itemsToImport.length; i++) {
         const item = itemsToImport[i];
@@ -71,27 +72,39 @@ async function run() {
         const aspiration = parseFloat(item['__EMPTY_3']) || 0;
         const unit = item['__EMPTY_4'] || 'Kg';
 
-        // 1. Assign unique 5V LED Pin for the product
+        // 1. Assign unique 5V LED Pin for the product (Feedback pin)
         const ledPin = globalPinPool[poolIdx % globalPinPool.length];
         poolIdx++;
 
-        // 2. Parse crops and assign UNIQUE pins to each
+        // 2. Parse crops and assign pins (REUSE if crop name already has an assigned pin)
         const individualCrops = rawCrops.split('/').map(s => s.trim()).filter(s => s !== '');
         const cropPins = [];
         const ledPins2 = [];
 
         for (const cropName of individualCrops) {
-            const assignedPin = globalPinPool[poolIdx % globalPinPool.length];
+            let assignedPin;
+            
+            if (cropToPinMap[cropName]) {
+                // Reuse existing pin for this crop
+                assignedPin = cropToPinMap[cropName];
+                console.log(` - Reusing Pin ${assignedPin} for Crop: ${cropName}`);
+            } else {
+                // Assign a new pin from the pool for this new crop
+                assignedPin = globalPinPool[poolIdx % globalPinPool.length];
+                cropToPinMap[cropName] = assignedPin;
+                poolIdx++;
+                console.log(` - Assigning NEW Pin ${assignedPin} for Crop: ${cropName}`);
+            }
+            
             cropPins.push({ cropName, pin: assignedPin });
             ledPins2.push(assignedPin);
-            poolIdx++;
         }
 
         const id = 'prod_' + name.toLowerCase().replace(/[^a-z0-9]/g, '_');
 
         console.log(`Product: ${name}`);
-        console.log(` - 5V Status Pin: ${ledPin}`);
-        console.log(` - 12V Crop Pins: ${ledPins2.join(', ')}`);
+        console.log(` - Status Pin (5V): ${ledPin}`);
+        console.log(` - Crop Pins (12V): ${ledPins2.join(', ')}`);
 
         await Product.findOneAndUpdate(
             { name: name },
@@ -111,10 +124,9 @@ async function run() {
         );
     }
 
-    console.log(`\nImport Complete. Total unique pins used: ${poolIdx}`);
-    if (poolIdx > globalPinPool.length) {
-        console.warn("WARNING: Some pins were reused because the product list exceeded the safe pin pool.");
-    }
+    console.log(`\nImport Complete.`);
+    console.log(`- Unique Crops Mapped: ${Object.keys(cropToPinMap).length}`);
+    console.log(`- Total Unique Pins Consumed: ${poolIdx}`);
     
     process.exit(0);
   } catch (err) {
