@@ -23,12 +23,12 @@ The dual screens share the data highway (SPI) but use separate chip-selects.
 
 | Feature | Shared / Common | Screen 1 (Visual) | Screen 2 (Data) |
 | :--- | :--- | :--- | :--- |
-| **SCK (Clock)** | **GPIO 12** | — | — |
-| **MOSI (Data)** | **GPIO 43** | — | — |
-| **MISO** | **GPIO 13** | — | — |
+| **SCK (Clock)** | **GPIO 36** | — | — |
+| **MOSI (Data)** | **GPIO 35** | — | — |
+| **MISO** | **GPIO 37** | — | — |
 | **CS (Select)** | — | **GPIO 44** | **GPIO 14** |
 | **DC (Logic)** | — | **GPIO 21** | **GPIO 17** |
-| **RESET** | — | **GPIO 45** | **GPIO 18** |
+| **RESET** | — | **GPIO 38** | - |
 
 ---
 
