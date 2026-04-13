@@ -33,6 +33,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           y26: p.y26,
           aspiration: p.aspiration,
           ledPin: p.ledPin ?? 2,
+          ledPins2: p.ledPins2 ?? [],
+          cropPins: p.cropPins ?? [],
           unit: p.unit ?? 'Kg'
         })),
         focusedProduct: focusedProduct ? {
@@ -43,6 +45,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           y26: focusedProduct.y26,
           aspiration: focusedProduct.aspiration,
           ledPin: focusedProduct.ledPin ?? 2,
+          ledPins2: focusedProduct.ledPins2 ?? [],
+          cropPins: focusedProduct.cropPins ?? [],
           unit: focusedProduct.unit ?? 'Kg'
         } : null
       });

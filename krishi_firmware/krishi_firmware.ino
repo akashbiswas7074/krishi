@@ -21,11 +21,11 @@ const String bitmapApiUrl =
 
 // --- PIN CONFIG (ESP32-S3) ---
 #define TFT_SCK 12
-#define TFT_MOSI 43
+#define TFT_MOSI 11
 #define TFT_MISO 13
 
 // Screen 1 (Image)
-#define TFT_CS1 44
+#define TFT_CS1 10
 #define TFT_DC1 21
 #define TFT_RST1 45
 
@@ -53,13 +53,15 @@ struct ProductData {
   int aspiration;
   String unit;
   int ledPin;
+  std::vector<int> ledPins2;
 };
 
 std::vector<ProductData>
     activeProducts; // Only those with isActive: true from server
 
 // --- STATE TRACKING ---
-int lastDynamicLedPin = -1;
+int lastLedPin1 = -1;
+std::vector<int> lastLedPins2;
 unsigned long lastStatusUpdate = 0;
 unsigned long lastSlideshowStep = 0;
 const unsigned long statusInterval = 5000; // Check web server every 5 seconds
@@ -230,6 +232,11 @@ void syncAllData() {
         prod.aspiration = p["aspiration"];
         prod.unit = p["unit"] | "Kg";
         prod.ledPin = p["ledPin"] | 0;
+        
+        JsonArray pins2 = p["ledPins2"].as<JsonArray>();
+        for (int pin : pins2) {
+          prod.ledPins2.push_back(pin);
+        }
 
         activeProducts.push_back(prod);
         downloadImageToFS(prod.id);
@@ -331,18 +338,29 @@ void displayProduct(ProductData p) {
   drawLocalImage(p.id.c_str());
   currentLoadedImageId = p.id;
 
-  // LED
+  // LEDs Control
   if (p.ledPin > 0) {
-    // SAFETY GUARD: Never use USB Pins 19 and 20 for LEDs
-    if (p.ledPin == 19 || p.ledPin == 20) {
-      Serial.print("WARNING: Skipping LED for ");
-      Serial.print(p.name);
-      Serial.println(" (Restricted USB Pin 19/20)");
-      return;
+    if (p.ledPin != 19 && p.ledPin != 20) {
+      pinMode(p.ledPin, OUTPUT);
+      digitalWrite(p.ledPin, HIGH);
+      lastLedPin1 = p.ledPin;
+    } else {
+      Serial.println("WARNING: Skipping 5V LED (USB Pin)");
     }
-    pinMode(p.ledPin, OUTPUT);
-    digitalWrite(p.ledPin, HIGH);
-    lastDynamicLedPin = p.ledPin;
+  }
+
+  lastLedPins2.clear();
+  for (int pin : p.ledPins2) {
+    if (pin > 0) {
+      if (pin != 19 && pin != 20) {
+        pinMode(pin, OUTPUT);
+        digitalWrite(pin, HIGH);
+        lastLedPins2.push_back(pin);
+      } else {
+        Serial.print("WARNING: Skipping 12V LED Pin ");
+        Serial.println(pin);
+      }
+    }
   }
 }
 
@@ -414,7 +432,10 @@ void showWaitingScreen() {
 }
 
 void turnOffAllLeds() {
-  if (lastDynamicLedPin > 0) {
-    digitalWrite(lastDynamicLedPin, LOW);
+  if (lastLedPin1 > 0) {
+    digitalWrite(lastLedPin1, LOW);
+  }
+  for (int pin : lastLedPins2) {
+    digitalWrite(pin, LOW);
   }
 }

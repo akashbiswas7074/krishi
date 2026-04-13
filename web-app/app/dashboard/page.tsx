@@ -25,7 +25,7 @@ export default function Dashboard() {
   const isAdmin = (session?.user as any)?.role === 'admin';
 
   const [formData, setFormData] = useState({
-    name: '', crops: '', y25: '', y26: '', aspiration: '', ledPin: '', unit: 'Kg'
+    name: '', crops: '', y25: '', y26: '', aspiration: '', ledPin: '', ledPins2: '', cropPins: [{ cropName: '', pin: '' }], unit: 'Kg'
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -186,6 +186,8 @@ export default function Dashboard() {
       y26: p.y26.toString(), 
       aspiration: p.aspiration.toString(), 
       ledPin: p.ledPin?.toString() || '0',
+      ledPins2: p.ledPins2?.join(', ') || '',
+      cropPins: p.cropPins && p.cropPins.length > 0 ? p.cropPins.map(cp => ({ cropName: cp.cropName, pin: cp.pin.toString() })) : [{ cropName: '', pin: '' }],
       unit: p.unit || ''
     });
     setEditingProductId(p.id);
@@ -263,6 +265,9 @@ export default function Dashboard() {
       y26: Number(formData.y26),
       aspiration: Number(formData.aspiration),
       ledPin: isNaN(Number(formData.ledPin)) ? 0 : Number(formData.ledPin),
+      ledPins2: formData.cropPins.map(cp => Number(cp.pin)).filter(n => !isNaN(n) && n > 0),
+      cropPins: formData.cropPins.map(cp => ({ cropName: cp.cropName, pin: Number(cp.pin) })),
+      crops: formData.cropPins.map(cp => cp.cropName).filter(n => n.trim() !== '').join(' / '),
       unit: formData.unit
     };
     if (imageUrl) payload.imageUrl = imageUrl;
@@ -274,7 +279,7 @@ export default function Dashboard() {
         body: JSON.stringify(payload)
       });
       alert(editingProductId ? "Product Updated Successfully!" : "Product Added Successfully!");
-      setFormData({ name: '', crops: '', y25: '', y26: '', aspiration: '', ledPin: '', unit: 'Kg' });
+      setFormData({ name: '', crops: '', y25: '', y26: '', aspiration: '', ledPin: '', ledPins2: '', cropPins: [{ cropName: '', pin: '' }], unit: 'Kg' });
       setImageFile(null);
       setEditingProductId(null);
       setTab('control');
@@ -399,7 +404,7 @@ export default function Dashboard() {
               }
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 'bold' }}>{p.name}</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Pin: {p.ledPin} | {p.crops}</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Pins: 5V:{p.ledPin} 12V:[{p.ledPins2?.join(', ')}] | {p.crops}</div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: '100px' }}>
                 <button 
@@ -440,8 +445,54 @@ export default function Dashboard() {
               <input type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
             </div>
             <div className="form-group">
-              <label>Target Crops</label>
-              <input type="text" required value={formData.crops} onChange={e => setFormData({...formData, crops: e.target.value})} />
+              <label>Crop Mapping (Name & Pin)</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                {formData.cropPins.map((cp, idx) => (
+                  <div key={idx} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <input 
+                      type="text" 
+                      placeholder="Crop Name" 
+                      style={{ flex: 2, marginBottom: 0 }} 
+                      value={cp.cropName} 
+                      onChange={e => {
+                        const newCP = [...formData.cropPins];
+                        newCP[idx].cropName = e.target.value;
+                        setFormData({...formData, cropPins: newCP});
+                      }}
+                    />
+                    <input 
+                      type="number" 
+                      placeholder="Pin" 
+                      style={{ flex: 1, marginBottom: 0 }} 
+                      value={cp.pin} 
+                      onChange={e => {
+                        const newCP = [...formData.cropPins];
+                        newCP[idx].pin = e.target.value;
+                        setFormData({...formData, cropPins: newCP});
+                      }}
+                    />
+                    {formData.cropPins.length > 1 && (
+                      <button 
+                        type="button" 
+                        style={{ background: '#ef4444', padding: '0.5rem', minWidth: '40px' }} 
+                        className="btn"
+                        onClick={() => {
+                          const newCP = formData.cropPins.filter((_, i) => i !== idx);
+                          setFormData({...formData, cropPins: newCP});
+                        }}
+                      >✕</button>
+                    )}
+                  </div>
+                ))}
+                <button 
+                  type="button" 
+                  className="btn" 
+                  style={{ background: 'transparent', border: '1px dashed var(--accent)', color: 'var(--accent)', marginTop: '0.5rem' }}
+                  onClick={() => setFormData({...formData, cropPins: [...formData.cropPins, { cropName: '', pin: '' }]})}
+                >
+                  + Add Another Crop
+                </button>
+              </div>
             </div>
             <div className="form-group">
               <label>Product Image</label>
@@ -467,9 +518,11 @@ export default function Dashboard() {
                 <input type="text" required value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} placeholder="Kg" />
               </div>
             </div>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label>ESP32 LED Pin</label>
-              <input type="number" required value={formData.ledPin} onChange={e => setFormData({...formData, ledPin: e.target.value})} placeholder="e.g. 2" />
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label>ESP32 LED Pin (5V)</label>
+                <input type="number" required value={formData.ledPin} onChange={e => setFormData({...formData, ledPin: e.target.value})} placeholder="e.g. 2" />
+              </div>
             </div>
             <button type="submit" disabled={isSubmitting} className="btn">
                 {isSubmitting ? 'Saving...' : (editingProductId ? 'Update Product' : 'Add Product')}
@@ -477,7 +530,7 @@ export default function Dashboard() {
             {editingProductId && (
               <button type="button" className="btn" style={{ marginLeft: '1rem', background: '#475569' }} onClick={() => {
                  setEditingProductId(null);
-                 setFormData({ name: '', crops: '', y25: '', y26: '', aspiration: '', ledPin: '', unit: 'Kg' });
+                 setFormData({ name: '', crops: '', y25: '', y26: '', aspiration: '', ledPin: '', ledPins2: '', cropPins: [{ cropName: '', pin: '' }], unit: 'Kg' });
               }}>Cancel Edit</button>
             )}
           </form>

@@ -11,6 +11,8 @@ export interface IProduct extends Document {
   imageUrl: string | null;
   isActive: boolean;
   ledPin: number;
+  ledPins2: number[];
+  cropPins: { cropName: string, pin: number }[];
   unit: string;
 }
 
@@ -55,6 +57,14 @@ const ProductSchema: Schema = new mongoose.Schema({
     type: Number,
     default: 2,
   },
+  ledPins2: {
+    type: [Number],
+    default: [],
+  },
+  cropPins: [{
+    cropName: String,
+    pin: Number
+  }],
   unit: {
     type: String,
     default: 'Kg',

@@ -23,24 +23,28 @@ The dual screens share the data highway (SPI) but use separate chip-selects.
 
 | Feature | Shared / Common | Screen 1 (Visual) | Screen 2 (Data) |
 | :--- | :--- | :--- | :--- |
-| **SCK (Clock)** | **GPIO 36** | — | — |
-| **MOSI (Data)** | **GPIO 35** | — | — |
-| **MISO** | **GPIO 37** | — | — |
-| **CS (Select)** | — | **GPIO 44** | **GPIO 14** |
+| **SCK (Clock)** | **GPIO 12** | — | — |
+| **MOSI (Data)** | **GPIO 11** | — | — |
+| **MISO** | **GPIO 13** | — | — |
+| **CS (Select)** | — | **GPIO 10** | **GPIO 14** |
 | **DC (Logic)** | — | **GPIO 21** | **GPIO 17** |
 | **RESET** | — | **GPIO 38** | - |
 
 ---
 
-## 💡 12V LED Activation Pins
+## 💡 Product LED Activation Pins (Dynamic)
 
-| Product Name | Pin (To MOSFET Gate) | Product Name | Pin (To MOSFET Gate) |
+| Product Name | 5V ESP Pin | Target Crops | 12V Crop Pins |
 | :--- | :--- | :--- | :--- |
-| **GAINEXA** | **GPIO 1** | **TRIDIUM** | **GPIO 15** |
-| **CENTURION EZ** | **GPIO 2** | **ARGYLE** | **GPIO 16** |
-| **ELECTRON** | **GPIO 3** | **BRUCIA** | **GPIO 19** |
-| **TRISKELE** | **GPIO 4** | **LARVIRON** | **GPIO 20** |
-| **KEVUKA** | **GPIO 5** | — | — |
+| **GAINEXA** | 1 | PADDY / VEGETABLE | 2, 3 |
+| **CENTURION EZ** | 4 | JUTE | 5 |
+| **ELECTRON** | 6 | VEGETABLE | 7 |
+| **TRISKELE** | 8 | SUGARCANE | 9 |
+| **KEVUKA / ZEVIGO** | 15 | PADDY | 16 |
+| **TRIDIUM** | 33 | PADDY / POTATO / VEGETABLE | 34, 35, 36 |
+| **ARGYLE** | 37 | VEGETABLE / PADDY | 38, 39 |
+| **BRUCIA** | 40 | MAIZE | 41 |
+| **LARVIRON** | 42 | PADDY | 44 |
 
 ---
 
@@ -61,11 +65,11 @@ graph TD
     Buck -- "Adjust to 3.3V" --> Scr2[Screen 2: Data & Stats]
     
     %% Logic Connections
-    ESP -- "SPI + CS(GPIO 44)" --> Scr1
+    ESP -- "SPI + CS(GPIO 10)" --> Scr1
     ESP -- "SPI + CS(GPIO 14)" --> Scr2
     
     %% MOSFET Control
-    ESP -- "Signal (GPIO 1..20)" --> Resists[220 Ohm Resistors]
+    ESP -- "Signal (GPIO 1..44)" --> Resists[220 Ohm Resistors]
     Resists --> MOSFETs[MOSFET Array: Gate]
     
     MOSFETs -- "Drain" --> LEDS_GND[12V LED Clusters -]
