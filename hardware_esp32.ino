@@ -28,7 +28,7 @@ const String bitmapApiUrl =
 #define TFT_SCK 36
 #define TFT_MOSI 35
 #define TFT_MISO 37
-#define TFT_RST 4   // ✅ Shared reset
+#define TFT_RST 38  // ✅ Shared reset
 
 #define TFT_CS1 44
 #define TFT_DC1 21
