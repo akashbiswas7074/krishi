@@ -35,9 +35,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         background: { r: 0, g: 0, b: 0 }
       })
       .jpeg({ 
-        quality: 80,
-        progressive: false, // Standard baseline for microcontrollers
-        chromaSubsampling: '4:2:0'
+        quality: 40, // Highly compressed for ESP32 speed
+        mozjpeg: true, // Extra optimization for small file sizes
+        progressive: false, // Baseline for microcontrollers
+        chromaSubsampling: '4:2:0' 
       })
       .toBuffer();
 

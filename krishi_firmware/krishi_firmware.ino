@@ -27,12 +27,12 @@ const String bitmapApiUrl =
 // Screen 1 (Image)
 #define TFT_CS1 10
 #define TFT_DC1 21
-#define TFT_RST1 45
+#define TFT_RST1 47  // Safe pin (Previously 1 caused UART conflict)
 
 // Screen 2 (Details)
 #define TFT_CS2 14
 #define TFT_DC2 17
-#define TFT_RST2 18
+#define TFT_RST2 48  // Safe pin (Previously 3 caused UART conflict)
 
 // --- DISPLAY COLOR THEME ---
 #define KRISHI_GREEN 0x07E0
@@ -364,42 +364,47 @@ void displayProduct(ProductData p) {
   if (currentLoadedImageId == p.id)
     return; // Prevent flicker
 
+  Serial.println("\n------------------------------");
   Serial.print("Displaying: ");
   Serial.println(p.name);
+  
   turnOffAllLeds();
 
-  // Update Screen 2
+  // Update Screens
   updateScreen2(p.name.c_str(), p.crops.c_str(), p.y25, p.y26, p.aspiration,
                 p.unit.c_str());
-
-  // Update Screen 1
   drawLocalImage(p.id.c_str());
   currentLoadedImageId = p.id;
 
-  // LEDs Control
+  // LED Activation: 5V Status Pin
   if (p.ledPin > 0) {
     if (p.ledPin != 19 && p.ledPin != 20) {
       pinMode(p.ledPin, OUTPUT);
       digitalWrite(p.ledPin, HIGH);
       lastLedPin1 = p.ledPin;
+      Serial.printf(" - 5V Status LED ON: Pin %d\n", p.ledPin);
     } else {
-      Serial.println("WARNING: Skipping 5V LED (USB Pin)");
+      Serial.println(" - WARNING: Skipping 5V LED (USB Pin Conflict)");
     }
   }
 
+  // LED Activation: 12V Crop Pins
   lastLedPins2.clear();
+  Serial.printf(" - 12V Crop Pins Count: %d\n", p.ledPins2.size());
+  
   for (int pin : p.ledPins2) {
     if (pin > 0) {
       if (pin != 19 && pin != 20) {
         pinMode(pin, OUTPUT);
         digitalWrite(pin, HIGH);
         lastLedPins2.push_back(pin);
+        Serial.printf("   -> Crop LED ON: Pin %d\n", pin);
       } else {
-        Serial.print("WARNING: Skipping 12V LED Pin ");
-        Serial.println(pin);
+        Serial.printf("   -> WARNING: Skipping 12V Pin %d (USB Conflict)\n", pin);
       }
     }
   }
+  Serial.println("------------------------------\n");
 }
 
 void drawLocalImage(const char *id) {

@@ -21,9 +21,13 @@ async function dbConnect() {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 10000,
+      family: 4 // Force IPv4 to avoid some EAI_AGAIN DNS issues
     };
 
     cached.promise = mongoose.connect(MONGODB_URI as string, opts).then((mongoose) => {
+      console.log("MongoDB connected successfully");
       return mongoose;
     });
   }

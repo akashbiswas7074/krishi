@@ -35,7 +35,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ledPin: p.ledPin ?? 2,
           ledPins2: p.ledPins2 ?? [],
           cropPins: p.cropPins ?? [],
-          unit: p.unit ?? 'Kg'
+          unit: p.unit ?? 'Kg',
+          imageUrl: p.imageUrl
         })),
         focusedProduct: focusedProduct ? {
           id: focusedProduct.id,
@@ -47,7 +48,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ledPin: focusedProduct.ledPin ?? 2,
           ledPins2: focusedProduct.ledPins2 ?? [],
           cropPins: focusedProduct.cropPins ?? [],
-          unit: focusedProduct.unit ?? 'Kg'
+          unit: focusedProduct.unit ?? 'Kg',
+          imageUrl: focusedProduct.imageUrl
         } : null
       });
     } catch (error) {

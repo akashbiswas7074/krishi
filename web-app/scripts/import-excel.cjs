@@ -45,13 +45,13 @@ async function run() {
     const startIdx = data[0][' Budget (Bengal & Bihar)'] === 'Product Name' ? 1 : 0;
     const itemsToImport = data.slice(startIdx);
 
-    // Global Pin Pool for ESP32-S3 (excluding screens, critical UART, and restricted pins)
-    // Screens: 10, 11, 12, 13, 14, 17, 18, 21, 43, 45 (Updated for S3 Wiring Diagram)
+    // Ultra-Safe Pin Pool (excluding screens, UART, USB, and boot)
+    // Excluded: 0 (BOOT), 1 (TXD0), 3 (RXD0), 19, 20 (USB), 43, 44 (UART), 45, 46 (Log/Strap)
+    // Screen pins excluded: 10, 11, 12, 13, 14, 17, 18, 21
     const globalPinPool = [
-        1, 2, 3, 4, 5, 6, 7, 8, 9, 
+        2, 4, 5, 6, 7, 8, 9, 
         15, 16, 
-        33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 
-        44 // RX0
+        33, 34, 35, 36, 37, 38, 39, 40, 41, 42
     ];
     let poolIdx = 0;
 

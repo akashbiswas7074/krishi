@@ -404,7 +404,11 @@ export default function Dashboard() {
               }
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 'bold' }}>{p.name}</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Pins: 5V:{p.ledPin} 12V:[{p.ledPins2?.join(', ')}] | {p.crops}</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  <span style={{ color: '#60a5fa' }}>5V: {p.ledPin}</span> | 
+                  <span style={{ color: '#fbbf24' }}> 12V: [{p.ledPins2?.join(', ')}]</span> | 
+                  {p.crops}
+                </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: '100px' }}>
                 <button 

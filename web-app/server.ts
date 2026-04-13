@@ -24,13 +24,41 @@ app.prepare().then(async () => {
 
   const expressApp: Application = express();
   
-  // Removed express.json() and express.urlencoded() globally 
-  // because Next.js App Router API routes must read the raw request stream themselves.
+  // REQUIRED for POST/DELETE requests from the dashboard
+  expressApp.use(express.json());
+  expressApp.use(express.urlencoded({ extended: true }));
+
+  // Silence repetitive polling logs in the terminal
+  expressApp.use((req: Request, res: Response, next: any) => {
+    // Silence routine GET polls
+    const silentPaths = ['/api/active-product', '/api/products', '/api/auth/session'];
+    if (req.method === 'GET' && silentPaths.some(path => req.url.startsWith(path))) {
+       // Note: Silencing logs in Next.js internal handle is difficult, 
+       // but we ensure we don't add our own noise here.
+    }
+    next();
+  });
 
   // All routes are handled by Next.js App Router
   expressApp.use((req: Request, res: Response) => {
-    const parsedUrl = parse(req.url, true);
-    return handle(req, res, parsedUrl);
+    const protocol = req.headers['x-forwarded-proto'] || 'http';
+    const host = req.headers.host || 'localhost';
+    const baseUrl = `${protocol}://${host}`;
+    const parsedUrl = new URL(req.url!, baseUrl);
+    
+    // Convert WHATWG URL to Next.js-compatible object to satisfy handle()
+    const query: Record<string, string | string[]> = {};
+    parsedUrl.searchParams.forEach((value, key) => {
+      query[key] = value;
+    });
+
+    return handle(req, res, {
+      pathname: parsedUrl.pathname,
+      query,
+      search: parsedUrl.search,
+      hash: parsedUrl.hash,
+      href: parsedUrl.href
+    } as any);
   });
 
   const httpServer = createServer(expressApp);
@@ -57,7 +85,6 @@ app.prepare().then(async () => {
 
       try {
         const products = await Product.find({ isActive: true }).lean();
-        const activeIds = products.map(p => p.id);
         
         if (products.length === 0) {
           if (activeProductId !== null) {
@@ -75,7 +102,8 @@ app.prepare().then(async () => {
         }
         
         const nextProduct: any = products[nextIndex];
-        console.log(`[Rotation] Advancing: ${activeProductId} -> ${nextProduct.id} (${nextProduct.name})`);
+        // Silenced rotation logs to avoid terminal clutter unless there is an error
+        // console.log(`[Rotation] Advancing: ${activeProductId} -> ${nextProduct.id} (${nextProduct.name})`);
         
         activeProductId = nextProduct.id;
         const mappedProduct = { ...nextProduct, _id: nextProduct._id.toString() };

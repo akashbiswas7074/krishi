@@ -73,6 +73,9 @@ const ProductSchema: Schema = new mongoose.Schema({
   timestamps: true
 });
 
+// Optimization: Speed up polling queries
+ProductSchema.index({ isActive: 1 });
+
 if (mongoose.models.Product) {
   delete mongoose.models.Product;
 }

@@ -12,6 +12,19 @@ This configuration achieves the best isolation. Your high-power 12V LEDs are com
 | **Supply B** | **5V DC** | **- ESP32 5V Pin** <br> **- Buck Converter IN (+)** | Main Logic Power |
 | **Buck Conv** | **3.3V OUT** | **- Both Screen VCC & LED pins** | **Set to exactly 3.3V** |
 
+---
+
+## 🔌 Where to connect the 12V+ Plug?
+
+The 12V positive wire from your adapter **NEVER** touches the ESP32. It only goes to the LEDs:
+
+1.  **Main 12V+ Rail**: Connect the **Positive (+)** wire from your 12V adapter to a common terminal block or rail.
+2.  **To LED Clusters**: Connect the **Positive (+)** side of EVERY 12V LED cluster directly to this 12V Rail.
+3.  **To MOSFETs**: **NOTHING**. The 12V+ never touches the MOSFET pins. (The MOSFETs only control the Negative/- side of the circuit).
+
+> [!CAUTION]
+> **Safety Check**: Ensure the 12V+ wire never touches the ESP32 pins or the 5V power supply. This will permanently damage the microcontroller.
+
 > [!IMPORTANT]
 > **COMMON GROUND**: You must join the negative (-) wires of the 12V Supply, 5V Supply, Buck Converter, and ESP32 GND together.
 
@@ -28,7 +41,7 @@ The dual screens share the data highway (SPI) but use separate chip-selects.
 | **MISO** | **GPIO 13** | — | — |
 | **CS (Select)** | — | **GPIO 10** | **GPIO 14** |
 | **DC (Logic)** | — | **GPIO 21** | **GPIO 17** |
-| **RESET** | — | **GPIO 45** | **GPIO 18** |
+| **RESET** | — | **GPIO 47** | **GPIO 48** |
 
 ---
 
@@ -36,15 +49,15 @@ The dual screens share the data highway (SPI) but use separate chip-selects.
 
 | Product Name | 5V ESP Pin | Target Crops | 12V Crop Pins |
 | :--- | :--- | :--- | :--- |
-| **GAINEXA** | 1 | PADDY / VEGETABLE | 2, 3 |
-| **CENTURION EZ** | 4 | JUTE | 5 |
-| **ELECTRON** | 6 | VEGETABLE | 3 |
-| **TRISKELE** | 7 | SUGARCANE | 8 |
-| **KEVUKA / ZEVIGO** | 9 | PADDY | 2 |
-| **TRIDIUM** | 15 | PADDY / POTATO / VEGETABLE | 2, 16, 3 |
-| **ARGYLE** | 33 | VEGETABLE / PADDY | 3, 2 |
-| **BRUCIA** | 34 | MAIZE | 35 |
-| **LARVIRON** | 36 | PADDY | 2 |
+| **GAINEXA** | 2 | PADDY / VEGETABLE | 4, 5 |
+| **CENTURION EZ** | 6 | JUTE | 7 |
+| **ELECTRON** | 8 | VEGETABLE | 5 |
+| **TRISKELE** | 9 | SUGARCANE | 15 |
+| **KEVUKA / ZEVIGO** | 16 | PADDY | 4 |
+| **TRIDIUM** | 33 | PADDY / POTATO / VEGETABLE | 4, 34, 5 |
+| **ARGYLE** | 35 | VEGETABLE / PADDY | 5, 4 |
+| **BRUCIA** | 36 | MAIZE | 37 |
+| **LARVIRON** | 38 | PADDY | 4 |
 
 ---
 
@@ -52,12 +65,12 @@ The dual screens share the data highway (SPI) but use separate chip-selects.
 
 | Crop Name | Logic Pin (12V Rail) | Physical Layer |
 | :--- | :--- | :--- |
-| **PADDY** | **GPIO 2** | Field A |
-| **VEGETABLE** | **GPIO 3** | Field B |
-| **JUTE** | **GPIO 5** | Field C |
-| **SUGARCANE** | **GPIO 8** | Field D |
-| **POTATO** | **GPIO 16** | Field E |
-| **MAIZE** | **GPIO 35** | Field F |
+| **PADDY** | **GPIO 4** | Field A |
+| **VEGETABLE** | **GPIO 5** | Field B |
+| **JUTE** | **GPIO 7** | Field C |
+| **SUGARCANE** | **GPIO 15** | Field D |
+| **POTATO** | **GPIO 34** | Field E |
+| **MAIZE** | **GPIO 37** | Field F |
 
 ---
 
@@ -67,32 +80,44 @@ The dual screens share the data highway (SPI) but use separate chip-selects.
 graph TD
     %% Power Supplies
     PS_12V[12V Power Supply] --> Cap12V((1000uF Cap))
-    Cap12V --> LEDS[12V LED Clusters +]
+    Cap12V --> LEDS_12V[12V Crop LEDs +]
     
     PS_5V[5V Power Supply] --> Cap5V((100uF Cap))
     Cap5V --> ESP[ESP32-S3 DevKit]
     Cap5V --> Buck[Buck Converter]
     
-    %% Screens
-    Buck -- "Adjust to 3.3V" --> Scr1[Screen 1: Product Image]
-    Buck -- "Adjust to 3.3V" --> Scr2[Screen 2: Data & Stats]
+    %% Dual Screen Wiring (SPI & Power)
+    Buck -- "Adjust to 3.3V" --> VCC_SCREENS[Screens VCC]
+    ESP -- "SCK(12) / MOSI(11) / MISO(13)" --> SPI_BUS[[Shared SPI Bus]]
     
-    %% Logic Connections
-    ESP -- "SPI + CS(GPIO 10)" --> Scr1
-    ESP -- "SPI + CS(GPIO 14)" --> Scr2
+    SPI_BUS --- Scr1[Screen 1: Visuals]
+    SPI_BUS --- Scr2[Screen 2: Data]
     
-    %% MOSFET Control
-    ESP -- "Signal (GPIO 1..44)" --> Resists[220 Ohm Resistors]
-    Resists --> MOSFETs[MOSFET Array: Gate]
+    ESP -- "CS(10) / DC(21) / RST(45)" --> Scr1
+    ESP -- "CS(14) / DC(17) / RST(18)" --> Scr2
     
-    MOSFETs -- "Drain" --> LEDS_GND[12V LED Clusters -]
-    MOSFETs -- "Source" --> GND[Common GND]
+    %% Type 1: 5V Status LEDs (Control Panel)
+    ESP -- "GPIO 2..38" --> Res5V[Resistor 220Ω]
+    Res5V --> LED_5V[5V Status LED]
+    LED_5V --> GND
+    
+    %% Type 2: 12V Crop LEDs (Diorama Fields)
+    ESP -- "GPIO 4..37" --> Res12V[Resistor 220Ω]
+    Res12V --> MOSFETs[MOSFET Gate]
+    MOSFETs -- "Drain" --> LEDS_12V_GND[12V Crop LEDs -]
+    MOSFETs -- "Source" --> GND
     
     %% Shared Ground
-    ESP -- GND --- GND
-    PS_12V -- GND --- GND
-    PS_5V -- GND --- GND
-    Buck -- GND --- GND
+    subgraph Common_Ground
+    GND[Common GND]
+    end
+    
+    ESP --- GND
+    PS_12V --- GND
+    PS_5V --- GND
+    Buck --- GND
+    Scr1 --- GND
+    Scr2 --- GND
 ```
 
 ---
@@ -105,5 +130,20 @@ graph TD
 | **Smoothing Cap** | **1000 µF (12V) / 100 µF (5V)** | Watch polarity (Stripe to GND) |
 | **Gate Resistor** | **220 Ω** | Place between ESP Pin & MOSFET Gate |
 | **Buck Converter** | **LM2596** | **CRITICAL**: Set to 3.3V before connecting screens |
+
+---
+
+## 🛠️ MOSFET Pinout (IRFZ44N)
+
+When looking at the MOSFET from the front (label facing you):
+
+| Pin Name | Position | Connect To... | Purpose |
+| :--- | :--- | :--- | :--- |
+| **GATE (G)** | **Left (1)** | **ESP32 GPIO Pin** (via 220Ω Resistor) | ON/OFF Signal from ESP32 |
+| **DRAIN (D)** | **Middle (2)** | **LED Cluster (-) Negative wire** | Connects LEDs to the switch |
+| **SOURCE (S)** | **Right (3)** | **Common GROUND / Adapter (-) wire** | Path back to Power Supply |
+
+> [!TIP]
+> **Floating Gate Fix**: Add a 10kΩ resistor between **GATE** and **GND**. This ensures the LEDs stay OFF when the ESP32 is rebooting.
 
 **Everything is now perfectly isolated. Your logic runs on 5V, your screens on 3.3V, and your diorama on 12V!**
