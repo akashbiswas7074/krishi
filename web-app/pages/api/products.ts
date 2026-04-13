@@ -11,6 +11,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await dbConnect();
 
     if (req.method === 'GET') {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       const products = await Product.find({}).lean();
       const mapped = products.map(p => ({ ...p, _id: (p._id as any).toString() }));
       return res.status(200).json(mapped);

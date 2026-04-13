@@ -6,6 +6,10 @@ import SystemConfig from '@/models/SystemConfig';
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   await dbConnect();
 
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
   // Ensure SysConfig exists
   let config = await SystemConfig.findOne();
   if (!config) {

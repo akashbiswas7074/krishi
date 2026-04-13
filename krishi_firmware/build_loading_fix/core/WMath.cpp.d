@@ -1,0 +1,33 @@
+/home/akashbiswas7797/Desktop/projects/krisi/krishi_firmware/build_loading_fix/core/WMath.cpp.o: \
+ /home/akashbiswas7797/.arduino15/packages/esp32/hardware/esp32/3.3.7/cores/esp32/WMath.cpp \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/esp_system/include/esp_system.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/esp_common/include/esp_err.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/newlib/platform_include/stdio.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/esp_common/include/esp_compiler.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/esp_common/include/esp_attr.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/esp_common/include/esp_bit_defs.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/esp_common/include/esp_idf_version.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/hardware/esp32/3.3.7/cores/esp32/esp32-hal-log.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/esp_timer/include/esp_timer.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/esp_hw_support/include/esp_etm.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/esp_rom/esp32s3/include/esp32s3/rom/ets_sys.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/soc/esp32s3/include/soc/soc.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/esp_common/include/esp_assert.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/soc/esp32s3/register/soc/reg_base.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/log/include/esp_log.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/esp_rom/include/esp_rom_sys.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/soc/esp32s3/include/soc/reset_reasons.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/soc/esp32s3/include/soc/soc_caps.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/log/include/esp_log_config.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/log/include/esp_log_level.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/log/include/esp_log_color.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/log/include/esp_log_buffer.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/log/include/esp_log_timestamp.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/log/include/esp_log_write.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/log/include/esp_log_format.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/log/include/esp_log_args.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/esp_common/include/esp_macros.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/esp_common/include/esp_assert.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/log/include/esp_log_attr.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/log/include/esp_private/log_attr.h \
+ /home/akashbiswas7797/.arduino15/packages/esp32/tools/esp32s3-libs/3.3.7/include/esp_hw_support/include/esp_random.h

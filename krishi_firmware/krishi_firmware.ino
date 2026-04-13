@@ -25,7 +25,7 @@ const String bitmapApiUrl =
 #define TFT_MISO 13   // Primary SPI MISO (Optional for OLED)
 
 // Screen 1 (Image)
-#define TFT_CS1 10
+#define TFT_CS1 39  // Safe Pin (Previously 43 conflicted with Serial TX)
 #define TFT_DC1 21
 #define TFT_RST1 47  // Safe pin (Previously 1 caused UART conflict)
 
@@ -94,6 +94,22 @@ void setup() {
   if (!LittleFS.begin(true)) {
     Serial.println("LittleFS Mount Failed");
   }
+
+  // 1. Force both CS pins HIGH immediately to de-select from SPI bus
+  pinMode(TFT_CS1, OUTPUT);
+  pinMode(TFT_CS2, OUTPUT);
+  digitalWrite(TFT_CS1, HIGH);
+  digitalWrite(TFT_CS2, HIGH);
+
+  // 2. Hardware Reset Pulse
+  pinMode(TFT_RST1, OUTPUT);
+  pinMode(TFT_RST2, OUTPUT);
+  digitalWrite(TFT_RST1, LOW);
+  digitalWrite(TFT_RST2, LOW);
+  delay(10);
+  digitalWrite(TFT_RST1, HIGH);
+  digitalWrite(TFT_RST2, HIGH);
+  delay(100);
 
   SPI.begin(TFT_SCK, TFT_MISO, TFT_MOSI);
 
@@ -269,18 +285,24 @@ void downloadImageToFS(String id) {
   HTTPClient http;
 
   if (http.begin(client, url)) {
+    // Show loading indicator on Screen 2
+    tft2.fillRect(0, 100, 320, 40, ILI9341_BLACK);
+    tft2.setCursor(20, 110);
+    tft2.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
+    tft2.setTextSize(2);
+    tft2.print("FETCHING IMAGE...");
+
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
-      File file = LittleFS.open(filename, "w"); // "w" will overwrite
-      if (file) {
-        http.writeToStream(&file);
-        file.close();
-        Serial.print("Downloaded/Updated: ");
-        Serial.println(filename);
-      } else {
-        Serial.print("Error: Could not open file for writing: ");
-        Serial.println(filename);
-      }
+        File file = LittleFS.open(filename, "w"); // "w" will overwrite
+        if (file) {
+          int bytesWritten = http.writeToStream(&file);
+          file.close();
+          Serial.printf("✅ Image Saved: %s (%d bytes)\n", filename.c_str(), bytesWritten);
+        } else {
+          Serial.print("❌ LittleFS Error: Could not open file for writing: ");
+          Serial.println(filename);
+        }
     } else {
       Serial.print("Error: Download failed for ");
       Serial.print(id);
@@ -301,9 +323,13 @@ void fetchServerStatus() {
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
       String payload = http.getString();
-      // Increased buffer to handle product list sync
-      DynamicJsonDocument doc(16384); 
+      // Increased buffer to handle larger product lists and metadata
+      DynamicJsonDocument doc(32768); 
       deserializeJson(doc, payload);
+
+      if (doc.isNull()) {
+        Serial.println("Error: Failed to parse poll JSON");
+      }
 
       bool remoteSlideshowStatus = doc["isSlideshowActive"];
       
@@ -414,53 +440,61 @@ void drawLocalImage(const char *id) {
   if (!LittleFS.exists(filename))
     return;
 
-  digitalWrite(TFT_CS1, LOW);
-  digitalWrite(TFT_CS2, HIGH);
   tft1.fillScreen(ILI9341_WHITE);
-  TJpgDec.drawFsJpg(0, 0, filename);
-  digitalWrite(TFT_CS1, HIGH);
+  
+  Serial.print("🎨 Drawing Image: ");
+  Serial.println(filename);
+
+  int decodeResult = TJpgDec.drawFsJpg(0, 0, filename.c_str());
+  if (decodeResult != 0) {
+    Serial.printf("❌ JPEG Error: %d\n", decodeResult);
+  }
 }
 
 void updateScreen2(const char *name, const char *crops, int y25, int y26,
                    int asp, const char *unit) {
+  // Explicitly disable other screen to prevent "bleed" or overlapping signals
+  digitalWrite(TFT_CS1, HIGH);
   digitalWrite(TFT_CS2, LOW);
+
   tft2.fillScreen(ILI9341_BLACK);
 
-  // Header
+  // Header - Use opaque text to prevent any background bleed
   tft2.fillRect(0, 0, 320, 50, KRISHI_DARK);
-  tft2.setTextColor(ILI9341_WHITE);
+  tft2.setTextColor(ILI9341_WHITE, KRISHI_DARK);
   tft2.setTextSize(3);
   tft2.setCursor(10, 12);
   tft2.print(name);
 
   tft2.setTextSize(2);
   tft2.setCursor(10, 60);
-  tft2.setTextColor(KRISHI_GREEN);
+  tft2.setTextColor(KRISHI_GREEN, ILI9341_BLACK);
   tft2.print("Crops: ");
   tft2.print(crops);
 
-  tft2.setTextColor(ILI9341_BLUE);
+  tft2.setTextColor(ILI9341_BLUE, ILI9341_BLACK);
   tft2.setCursor(10, 100);
   tft2.print("2025-26 Sales:");
   tft2.setCursor(10, 120);
-  tft2.setTextColor(ILI9341_WHITE);
+  tft2.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
   tft2.print(y25);
   tft2.print(" ");
   tft2.print(unit);
 
-  tft2.setTextColor(ILI9341_CYAN);
+  tft2.setTextColor(ILI9341_CYAN, ILI9341_BLACK);
   tft2.setCursor(10, 150);
   tft2.print("2026-27 Sales:");
   tft2.setCursor(10, 170);
-  tft2.setTextColor(ILI9341_WHITE);
+  tft2.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
   tft2.print(y26);
   tft2.print(" ");
   tft2.print(unit);
 
-  tft2.setTextColor(KRISHI_GREEN);
+  tft2.setTextColor(KRISHI_GREEN, ILI9341_BLACK);
   tft2.setCursor(10, 200);
   tft2.print("ASPIRATION TARGET:");
   tft2.setCursor(10, 220);
+  tft2.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
   tft2.print(asp);
   tft2.print(" ");
   tft2.print(unit);
