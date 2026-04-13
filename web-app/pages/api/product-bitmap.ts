@@ -56,10 +56,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         background: { r: 0, g: 0, b: 0 }
       })
       .jpeg({ 
-        quality: 40, 
-        mozjpeg: true, 
-        progressive: false, 
-        chromaSubsampling: '4:2:0' 
+        quality: 60, // Standard quality
+        progressive: false 
       })
       .toBuffer();
 

@@ -304,10 +304,29 @@ void downloadImageToFS(String id) {
 
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
-        File file = LittleFS.open(filename, "w"); // "w" will overwrite
+        int contentLen = http.getSize();
+        Serial.printf("📥 Downloading %d bytes...\n", contentLen);
+
+        File file = LittleFS.open(filename, "w");
         if (file) {
           int bytesWritten = http.writeToStream(&file);
           file.close();
+          
+          // Debug Integrity Check
+          File check = LittleFS.open(filename, "r");
+          if (check) {
+            uint8_t header[2];
+            check.read(header, 2);
+            Serial.printf("🔍 SOI Header: 0x%02X 0x%02X\n", header[0], header[1]);
+            check.close();
+            
+            if (header[0] == 0xFF && header[1] == 0xD8) {
+              Serial.println("✅ Valid JPEG SOI Record.");
+            } else {
+              Serial.println("❌ ERROR: Not a valid JPEG (Missing SOI)!");
+            }
+          }
+          
           Serial.printf("✅ Image Saved: %s (%d bytes)\n", filename.c_str(), bytesWritten);
         } else {
           Serial.print("❌ LittleFS Error: Could not open file for writing: ");
@@ -462,14 +481,31 @@ void drawLocalImage(const char *id) {
     return;
   }
 
+  uint16_t w = 0, h = 0;
+  if (TJpgDec.getFsJpgSize(&w, &h, filename.c_str()) != 0) {
+      Serial.println("❌ JPEG Size Error: File might be corrupted or not a JPEG.");
+      tft1.fillScreen(ILI9341_RED);
+      tft1.setTextColor(ILI9341_WHITE);
+      tft1.setCursor(10, 100);
+      tft1.print("CORRUPT IMAGE:");
+      tft1.setCursor(10, 130);
+      tft1.print(filename);
+      return;
+  }
+
   tft1.fillScreen(ILI9341_WHITE);
   
   Serial.print("🎨 Drawing Image: ");
-  Serial.println(filename);
+  Serial.print(filename);
+  Serial.printf(" (%dx%d)\n", w, h);
 
   int decodeResult = TJpgDec.drawFsJpg(0, 0, filename.c_str());
   if (decodeResult != 0) {
     Serial.printf("❌ JPEG Error: %d\n", decodeResult);
+    tft1.setCursor(10, 20);
+    tft1.setTextColor(ILI9341_RED);
+    tft1.print("DECODE FAIL: ");
+    tft1.print(decodeResult);
   }
 }
 
