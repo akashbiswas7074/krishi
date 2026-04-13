@@ -25,7 +25,7 @@ const String bitmapApiUrl =
 #define TFT_MISO 13   // Primary SPI MISO (Optional for OLED)
 
 // Screen 1 (Visual)
-#define TFT_CS1  15  // SAFE (Avoids Internal Flash conflict)
+#define TFT_CS1   2  // ULTIMATE SAFE PIN (No memory or strapping links)
 #define TFT_DC1  21
 #define TFT_RST1 47
 
@@ -115,18 +115,16 @@ void setup() {
 
   // SPI was already mapped in begin(SCK, MISO, MOSI)
   Serial.println("📺 Initializing Screen 1...");
-  tft1.begin(20000000); 
+  tft1.begin(8000000); // 8MHz is the ultimate safe speed for long wires
   tft1.setRotation(1);
-  tft1.fillScreen(ILI9341_CYAN); // Use Cyan instead of White to see if fillScreen works
-  tft1.setCursor(20, 100);
+  tft1.fillScreen(ILI9341_WHITE); 
   tft1.setTextColor(ILI9341_BLACK);
   tft1.setTextSize(2);
-  tft1.print("SCREEN 1 ACTIVE");
-  tft1.setCursor(20, 130);
+  tft1.setCursor(20, 100);
   tft1.print("WAITING FOR IMAGE...");
 
   Serial.println("📺 Initializing Screen 2...");
-  tft2.begin(20000000);
+  tft2.begin(8000000); // 8MHz is the ultimate safe speed for long wires
   tft2.setRotation(1);
   tft2.fillScreen(ILI9341_BLACK);
   tft2.setCursor(20, 100);

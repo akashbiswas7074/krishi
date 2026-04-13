@@ -47,8 +47,8 @@ async function run() {
 
   // Ultra-Safe Pin Pool (excluding screen pins and reserved IOs)
   const globalPinPool = [
-      2, 4, 5, 6, 7, 8, 9, 16, 18, 
-      33, 34, 35, 36, 37, 38, 40, 41, 42
+      4, 6, 7, 8, 9, 16, 18, 
+      33, 34, 35, 36, 37, 38, 41
   ];
     let poolIdx = 0;
     const cropToPinMap = {}; // RE-ENABLED for efficiency
