@@ -63,7 +63,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         optimiseScans: false,       // Force baseline JPEG
         mozjpeg: false,             // Use standard encoder
         jfif: true,                 // FORCE JFIF header (APP0) - Critical for some hardware
-      })
+      } as any)
       .toBuffer();
 
     console.log(`✅ Image Ready [${id}]: ${processed.length} bytes`);
