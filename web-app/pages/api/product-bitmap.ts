@@ -50,7 +50,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Final safety resize for ESP32 (in case Cloudinary trans fails or it's a non-cloudinary URL)
     const processed = await sharp(buffer)
-      .trim() // Automatically remove white/transparent margins
+      .trim({ threshold: 40 }) // Much more aggressive margin removal
       .resize(320, 240, { 
         fit: 'cover',
         background: { r: 255, g: 255, b: 255 }
