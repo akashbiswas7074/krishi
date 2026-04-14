@@ -26,14 +26,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     let finalUrl = product.imageUrl;
     
-    // Cloudinary Smart Optimization: Transform to 320x240 JPEG on the CDN side
+    // Cloudinary Smart Optimization: Transform to 320x240 on the CDN side
     if (finalUrl.includes('cloudinary.com')) {
       // Ensure https protocol
       if (finalUrl.startsWith('//')) finalUrl = 'https:' + finalUrl;
       
-      // Inject transformation flags: w_320,h_240,c_fill,f_jpg,q_auto
-      // Works by replacing '/upload/' with '/upload/w_320,h_240,c_fill,f_jpg,q_auto/'
-      finalUrl = finalUrl.replace('/upload/', '/upload/w_320,h_240,c_fill,f_jpg,q_auto/');
+      // Inject transformation flags: w_320,h_240,c_fill
+      // We removed f_jpg and q_auto to let 'sharp' control the format strictly.
+      finalUrl = finalUrl.replace('/upload/', '/upload/w_320,h_240,c_fill/');
     }
 
     console.log(`🔄 Fetching Image [${id}]: ${finalUrl}`);
@@ -57,16 +57,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
       .rotate() // Auto-rotate based on EXIF before stripping
       .jpeg({ 
-        quality: 60,                // Slightly higher base quality for clarity
-        chromaSubsampling: '4:2:0', // Standard subsampling
-        progressive: false,         // MUST be false for hardware
-        optimiseScans: false        // Disable MozJPEG scan optimization
+        quality: 70,                // Balanced quality
+        chromaSubsampling: '4:2:0', // Standard subsampling for hardware
+        progressive: false,         // MUST be false for hardware decoders
+        optimiseScans: false,       // Force baseline JPEG
+        mozjpeg: false              // Use standard encoder
       })
       .toBuffer();
 
     console.log(`✅ Image Ready [${id}]: ${processed.length} bytes`);
+    
+    // CACHE CONTROL: Set to no-store to force hardware to get fresh images during fix
     res.setHeader('Content-Type', 'image/jpeg');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
     res.send(processed);
   } catch (error) {
     console.error(`❌ Image Error [${id}]:`, error);
