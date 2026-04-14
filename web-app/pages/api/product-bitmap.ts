@@ -31,9 +31,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Ensure https protocol
       if (finalUrl.startsWith('//')) finalUrl = 'https:' + finalUrl;
       
-      // Inject transformation flags: w_320,h_240,c_fill
-      // We removed f_jpg and q_auto to let 'sharp' control the format strictly.
-      finalUrl = finalUrl.replace('/upload/', '/upload/w_320,h_240,c_fill/');
+      // Inject transformation flags: w_640,h_480,c_limit (preserves aspect ratio)
+      finalUrl = finalUrl.replace('/upload/', '/upload/w_640,h_480,c_limit/');
     }
 
     console.log(`🔄 Fetching Image [${id}]: ${finalUrl}`);
