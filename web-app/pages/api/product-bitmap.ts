@@ -52,7 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const processed = await sharp(buffer)
       .trim() // Automatically remove white/transparent margins
       .resize(320, 240, { 
-        fit: 'fill',
+        fit: 'cover',
         background: { r: 255, g: 255, b: 255 }
       })
       .rotate() // Auto-rotate based on EXIF before stripping
