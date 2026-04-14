@@ -101,9 +101,9 @@ void setup() {
   Serial.println("📺 Initializing Screen 1 (Visuals)...");
   tft1.begin(8000000);
   tft1.setRotation(3);
-  tft1.fillScreen(ILI9341_BLACK); 
+  tft1.fillScreen(ILI9341_WHITE); 
   tft1.setCursor(20, 100);
-  tft1.setTextColor(KRISHI_GREEN);
+  tft1.setTextColor(ILI9341_BLACK);
   tft1.setTextSize(2);
   tft1.print("CONNECTING...");
 
@@ -242,9 +242,9 @@ void streamImageFromWeb(String id) {
   Serial.printf("\n🌐 Streaming [%s]: %s\n", id.c_str(), url.c_str());
   
   // Show loading indicator on Screen 1
-  tft1.fillScreen(ILI9341_BLACK);
+  tft1.fillScreen(ILI9341_WHITE);
   tft1.setCursor(60, 100);
-  tft1.setTextColor(KRISHI_GREEN);
+  tft1.setTextColor(ILI9341_BLACK);
   tft1.setTextSize(2);
   tft1.print("STREAMING...");
 
@@ -275,7 +275,7 @@ void streamImageFromWeb(String id) {
           Serial.printf("📥 Received %d/%d bytes\n", read, size);
           
           if (read == size) {
-            tft1.fillScreen(ILI9341_BLACK);
+            tft1.fillScreen(ILI9341_WHITE);
             TJpgDec.drawJpg(0, 0, buffer, size);
             Serial.println("✅ OK.");
           } else {
