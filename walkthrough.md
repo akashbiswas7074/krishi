@@ -49,15 +49,15 @@ The dual screens share the data highway (SPI) but use separate chip-selects.
 
 | Product Name | 5V ESP Pin | Target Crops | 12V Crop Pins |
 | :--- | :--- | :--- | :--- |
-| **GAINEXA** | 2 | PADDY / VEGETABLE | 4, 5 |
-| **CENTURION EZ** | 6 | JUTE | 7 |
-| **ELECTRON** | 8 | VEGETABLE | 5 |
-| **TRISKELE** | 9 | SUGARCANE | 15 |
-| **KEVUKA / ZEVIGO** | 16 | PADDY | 4 |
-| **TRIDIUM** | 38 | PADDY / POTATO / VEGETABLE | 4, 39, 5 |
-| **ARGYLE** | 40 | VEGETABLE / PADDY | 5, 4 |
-| **BRUCIA** | 41 | MAIZE | 42 |
-| **LARVIRON** | 2 | PADDY | 4 |
+| **GAINEXA** | 4 | PADDY / VEGETABLE | 6, 7 |
+| **CENTURION EZ** | 8 | JUTE | 9 |
+| **ELECTRON** | 16 | VEGETABLE | 7 |
+| **TRISKELE** | 18 | SUGARCANE | 33 |
+| **KEVUKA / ZEVIGO** | 34 | PADDY | 6 |
+| **TRIDIUM** | 35 | PADDY / POTATO / VEGETABLE | 6, 36, 7 |
+| **ARGYLE** | 37 | VEGETABLE / PADDY | 7, 6 |
+| **BRUCIA** | 38 | MAIZE | 41 |
+| **LARVIRON** | 4 | PADDY | 6 |
 
 ---
 
@@ -65,12 +65,12 @@ The dual screens share the data highway (SPI) but use separate chip-selects.
 
 | Crop Name | Logic Pin (12V Rail) | Physical Layer |
 | :--- | :--- | :--- |
-| **PADDY** | **GPIO 4** | Field A |
-| **VEGETABLE** | **GPIO 5** | Field B |
-| **JUTE** | **GPIO 7** | Field C |
-| **SUGARCANE** | **GPIO 15** | Field D |
-| **POTATO** | **GPIO 39** | Field E |
-| **MAIZE** | **GPIO 42** | Field F |
+| **PADDY** | **GPIO 6** | Field A |
+| **VEGETABLE** | **GPIO 7** | Field B |
+| **JUTE** | **GPIO 9** | Field C |
+| **SUGARCANE** | **GPIO 33** | Field D |
+| **POTATO** | **GPIO 36** | Field E |
+| **MAIZE** | **GPIO 41** | Field F |
 
 ---
 
@@ -102,7 +102,7 @@ graph TD
     LED_5V --> GND
     
     %% Type 2: 12V Crop LEDs (Diorama Fields)
-    ESP -- "GPIO 4..37" --> Res12V[Resistor 220Ω]
+    ESP -- "GPIO 6..41" --> Res12V[Resistor 220Ω]
     Res12V --> MOSFETs[MOSFET Gate]
     MOSFETs -- "Drain" --> LEDS_12V_GND[12V Crop LEDs -]
     MOSFETs -- "Source" --> GND
