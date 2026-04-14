@@ -24,14 +24,14 @@ const String bitmapApiUrl =
 #define TFT_MISO 13
 
 // Screen 1 (Visual)
-#define TFT_CS1 2
+#define TFT_CS1 10
 #define TFT_DC1 21
 #define TFT_RST1 47
 
 // Screen 2 (Details)
 #define TFT_CS2 14
 #define TFT_DC2 17
-#define TFT_RST2 45
+#define TFT_RST2 48
 
 // --- DISPLAY COLOR THEME ---
 #define KRISHI_GREEN 0x07E0
@@ -61,7 +61,7 @@ int lastLedPin1 = -1;
 std::vector<int> lastLedPins2;
 unsigned long lastStatusUpdate = 0;
 unsigned long lastSlideshowStep = 0;
-const unsigned long statusInterval = 5000;
+const unsigned long statusInterval = 2000;
 const unsigned long slideshowInterval = 10000;
 
 String currentLoadedImageId = "";
@@ -315,8 +315,18 @@ void fetchServerStatus() {
         bool remoteSlideshowStatus = doc["isSlideshowActive"];
         if (isSlideshowActive != remoteSlideshowStatus) {
           isSlideshowActive = remoteSlideshowStatus;
-          if (isSlideshowActive)
+          if (isSlideshowActive) {
             lastSlideshowStep = millis();
+            // Smart Resume: Start slideshow from the current product
+            if (focusedProductId != "") {
+              for (int i = 0; i < activeProducts.size(); i++) {
+                if (activeProducts[i].id == focusedProductId) {
+                  slideshowIndex = i;
+                  break;
+                }
+              }
+            }
+          }
         }
 
         if (doc.containsKey("activeProducts")) {

@@ -116,6 +116,11 @@ export default function Dashboard() {
     };
   }, [tab, isAdmin]);
 
+  // Auto-resume slideshow on first dashboard load to sync hardware
+  useEffect(() => {
+    resumeSlideshow();
+  }, []);
+
   useEffect(() => {
     if (tab === 'admin_manage' && isAdmin) {
       fetchUsers();
