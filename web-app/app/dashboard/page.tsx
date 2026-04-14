@@ -18,7 +18,9 @@ const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) 
 export default function Dashboard() {
   const [products, setProducts] = useState<IProduct[]>([]);
   const [activeProduct, setActiveProduct] = useState<IProduct | null>(null);
-  const [tab, setTab] = useState<'control' | 'admin' | 'admin_manage'>('control');
+  const [tab, setTab] = useState<'control' | 'admin' | 'admin_manage' | 'settings'>('control');
+  const [wifiSSID, setWifiSSID] = useState('');
+  const [wifiPass, setWifiPass] = useState('');
   const [users, setUsers] = useState<any[]>([]);
   
   const { data: session } = useSession();
@@ -70,6 +72,8 @@ export default function Dashboard() {
         if (res.ok) {
           const data = await res.json();
           setIsSlideshowActive(data.isSlideshowActive);
+          setWifiSSID(data.wifiSSID || '');
+          setWifiPass(data.wifiPass || '');
           if (data.status === 'fixed' && data.focusedProduct) {
             setActiveProduct(data.focusedProduct);
           }
@@ -183,6 +187,25 @@ export default function Dashboard() {
       });
     } catch (err) {
       console.error('Failed to sync active product to DB:', err);
+    }
+  };
+
+  const updateWifiSettings = async () => {
+    if (!wifiSSID) return alert("SSID is required");
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/active-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'updateWifi', ssid: wifiSSID, pass: wifiPass })
+      });
+      if (res.ok) {
+        alert("WiFi settings updated! The hardware will sync in 5 seconds.");
+      }
+    } catch (err) {
+      console.error('Failed to update WiFi settings:', err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -333,6 +356,9 @@ export default function Dashboard() {
         <button className="btn" style={{ background: tab==='admin' ? 'var(--accent)' : 'transparent', border: '1px solid var(--glass-border)' }} onClick={() => setTab('admin')}>Add Product</button>
         {isAdmin && (
           <button className="btn" style={{ background: tab==='admin_manage' ? 'var(--accent)' : 'transparent', border: '1px solid var(--glass-border)' }} onClick={() => setTab('admin_manage')}>Admin Manage</button>
+        )}
+        {isAdmin && (
+          <button className="btn" style={{ background: tab==='settings' ? 'var(--accent)' : 'transparent', border: '1px solid var(--glass-border)' }} onClick={() => setTab('settings')}>System Settings</button>
         )}
         
         <button 
@@ -619,6 +645,42 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+      {tab === 'settings' && isAdmin && (
+        <div className="glass-panel fade-in" style={{ maxWidth: '400px', margin: '0 auto' }}>
+          <h2 style={{ marginBottom: '1.5rem', color: 'var(--accent)' }}>Network Sync</h2>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+            Enter your router credentials. The hardware will automatically download and persist these for offline use.
+          </p>
+          <div className="form-group">
+            <label>WiFi SSID (Name)</label>
+            <input 
+              type="text" 
+              placeholder="e.g. MyHomeWiFi" 
+              style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--glass-border)', color: '#fff', width: '100%', padding: '0.8rem', borderRadius: '8px' }}
+              value={wifiSSID} 
+              onChange={e => setWifiSSID(e.target.value)} 
+            />
+          </div>
+          <div className="form-group" style={{ marginTop: '1rem' }}>
+            <label>WiFi Password</label>
+            <input 
+              type="password" 
+              placeholder="••••••••" 
+              style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--glass-border)', color: '#fff', width: '100%', padding: '0.8rem', borderRadius: '8px' }}
+              value={wifiPass} 
+              onChange={e => setWifiPass(e.target.value)} 
+            />
+          </div>
+          <button 
+            className="btn" 
+            onClick={updateWifiSettings}
+            disabled={isSubmitting}
+            style={{ width: '100%', marginTop: '2rem' }}
+          >
+            {isSubmitting ? 'Syncing...' : '💾 Save & Sync Credentials'}
+          </button>
         </div>
       )}
     </div>

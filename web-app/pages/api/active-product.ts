@@ -29,6 +29,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         status: config.isSlideshowActive ? 'slideshow' : 'fixed',
         isSlideshowActive: config.isSlideshowActive,
         focusedProductId: config.focusedProductId,
+        wifiSSID: config.wifiSSID,
+        wifiPass: config.wifiPass,
         activeProducts: activeProducts.map(p => ({
           id: p.id,
           name: p.name,
@@ -70,6 +72,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         config.focusedProductId = null;
         await config.save();
         return res.status(200).json({ message: 'Slideshow resumed', config });
+      }
+
+      if (action === 'updateWifi') {
+        const { ssid, pass } = req.body;
+        if (!ssid) return res.status(400).json({ error: 'SSID required' });
+        config.wifiSSID = ssid;
+        config.wifiPass = pass || "";
+        await config.save();
+        return res.status(200).json({ message: 'WiFi configuration updated', config });
       }
 
       if (!id) return res.status(400).json({ error: 'Product ID required' });
