@@ -61,7 +61,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         chromaSubsampling: '4:2:0', // Standard subsampling for hardware
         progressive: false,         // MUST be false for hardware decoders
         optimiseScans: false,       // Force baseline JPEG
-        mozjpeg: false              // Use standard encoder
+        mozjpeg: false,             // Use standard encoder
+        jfif: true,                 // FORCE JFIF header (APP0) - Critical for some hardware
       })
       .toBuffer();
 
@@ -69,11 +70,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     // CACHE CONTROL: Set to no-store to force hardware to get fresh images during fix
     res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Content-Length', processed.length);
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
     
-    res.send(processed);
+    // Use .end() with the buffer for strict binary transport
+    res.end(processed);
   } catch (error) {
     console.error(`❌ Image Error [${id}]:`, error);
     // Return blank fallback on error
