@@ -25,12 +25,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         focusedProduct = await Product.findOne({ id: config.focusedProductId }).lean();
       }
 
+      const activeWifi = config.wifiNetworks[config.activeWifiIndex] || config.wifiNetworks[0];
+
       return res.status(200).json({ 
         status: config.isSlideshowActive ? 'slideshow' : 'fixed',
         isSlideshowActive: config.isSlideshowActive,
         focusedProductId: config.focusedProductId,
-        wifiSSID: config.wifiSSID,
-        wifiPass: config.wifiPass,
+        wifiSSID: activeWifi.ssid,
+        wifiPass: activeWifi.pass,
+        wifiNetworks: config.wifiNetworks,
+        activeWifiIndex: config.activeWifiIndex,
         activeProducts: activeProducts.map(p => ({
           id: p.id,
           name: p.name,
@@ -75,10 +79,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       if (action === 'updateWifi') {
-        const { ssid, pass } = req.body;
-        if (!ssid) return res.status(400).json({ error: 'SSID required' });
-        config.wifiSSID = ssid;
-        config.wifiPass = pass || "";
+        const { mode, ssid, pass, index } = req.body;
+        
+        if (mode === 'add') {
+          if (!ssid) return res.status(400).json({ error: 'SSID required' });
+          config.wifiNetworks.push({ ssid, pass: pass || "" });
+        } else if (mode === 'delete') {
+          if (typeof index !== 'number') return res.status(400).json({ error: 'Index required' });
+          if (config.wifiNetworks.length <= 1) return res.status(400).json({ error: 'At least one network must exist' });
+          config.wifiNetworks.splice(index, 1);
+          if (config.activeWifiIndex >= config.wifiNetworks.length) {
+            config.activeWifiIndex = 0;
+          }
+        } else if (mode === 'activate') {
+          if (typeof index !== 'number') return res.status(400).json({ error: 'Index required' });
+          config.activeWifiIndex = index;
+        } else if (mode === 'edit') {
+          if (typeof index !== 'number') return res.status(400).json({ error: 'Index required' });
+          if (!ssid) return res.status(400).json({ error: 'SSID required' });
+          config.wifiNetworks[index] = { ssid, pass: pass || "" };
+        } else {
+          // Legacy support for single-update
+          if (!ssid) return res.status(400).json({ error: 'SSID required' });
+          config.wifiNetworks[config.activeWifiIndex] = { ssid, pass: pass || "" };
+        }
+
         await config.save();
         return res.status(200).json({ message: 'WiFi configuration updated', config });
       }

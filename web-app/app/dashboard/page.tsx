@@ -21,6 +21,9 @@ export default function Dashboard() {
   const [tab, setTab] = useState<'control' | 'admin' | 'admin_manage' | 'settings'>('control');
   const [wifiSSID, setWifiSSID] = useState('');
   const [wifiPass, setWifiPass] = useState('');
+  const [wifiNetworks, setWifiNetworks] = useState<{ssid: string, pass: string}[]>([]);
+  const [activeWifiIndex, setActiveWifiIndex] = useState(0);
+  const [editingWifiIndex, setEditingWifiIndex] = useState<number | null>(null);
   const [users, setUsers] = useState<any[]>([]);
   
   const { data: session } = useSession();
@@ -74,6 +77,8 @@ export default function Dashboard() {
           setIsSlideshowActive(data.isSlideshowActive);
           setWifiSSID(data.wifiSSID || '');
           setWifiPass(data.wifiPass || '');
+          setWifiNetworks(data.wifiNetworks || []);
+          setActiveWifiIndex(data.activeWifiIndex || 0);
           if (data.status === 'fixed' && data.focusedProduct) {
             setActiveProduct(data.focusedProduct);
           }
@@ -190,17 +195,97 @@ export default function Dashboard() {
     }
   };
 
+  const addWifiNetwork = async () => {
+    if (!wifiSSID) return alert("SSID is required");
+    setIsSubmitting(true);
+    const isEditing = editingWifiIndex !== null;
+    try {
+      const res = await fetch('/api/active-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          action: 'updateWifi', 
+          mode: isEditing ? 'edit' : 'add', 
+          index: editingWifiIndex,
+          ssid: wifiSSID, 
+          pass: wifiPass 
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWifiNetworks(data.config.wifiNetworks);
+        setWifiSSID('');
+        setWifiPass('');
+        setEditingWifiIndex(null);
+        if (isEditing) alert("WiFi Credential Updated!");
+      }
+    } catch (err) {
+      console.error('Failed to save WiFi:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const startEditingWifi = (index: number) => {
+    const net = wifiNetworks[index];
+    setWifiSSID(net.ssid);
+    setWifiPass(net.pass);
+    setEditingWifiIndex(index);
+  };
+
+  const deleteWifiNetwork = async (index: number) => {
+    if (wifiNetworks.length <= 1) return alert("At least one network must exist");
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/active-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'updateWifi', mode: 'delete', index })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWifiNetworks(data.config.wifiNetworks);
+        setActiveWifiIndex(data.config.activeWifiIndex);
+      }
+    } catch (err) {
+      console.error('Failed to delete WiFi:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const activateWifiNetwork = async (index: number) => {
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/active-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'updateWifi', mode: 'activate', index })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setActiveWifiIndex(data.config.activeWifiIndex);
+        alert("WiFi Activated! The hardware will switch in 5 seconds.");
+      }
+    } catch (err) {
+      console.error('Failed to activate WiFi:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const updateWifiSettings = async () => {
+    // Legacy support/direct edit
     if (!wifiSSID) return alert("SSID is required");
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/active-product', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'updateWifi', ssid: wifiSSID, pass: wifiPass })
+        body: JSON.stringify({ action: 'updateWifi', mode: 'edit', ssid: wifiSSID, pass: wifiPass })
       });
       if (res.ok) {
-        alert("WiFi settings updated! The hardware will sync in 5 seconds.");
+        alert("WiFi settings updated!");
       }
     } catch (err) {
       console.error('Failed to update WiFi settings:', err);
@@ -648,11 +733,55 @@ export default function Dashboard() {
         </div>
       )}
       {tab === 'settings' && isAdmin && (
-        <div className="glass-panel fade-in" style={{ maxWidth: '400px', margin: '0 auto' }}>
-          <h2 style={{ marginBottom: '1.5rem', color: 'var(--accent)' }}>Network Sync</h2>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-            Enter your router credentials. The hardware will automatically download and persist these for offline use.
-          </p>
+        <div className="glass-panel fade-in" style={{ maxWidth: '600px', margin: '0 auto' }}>
+          <h2 style={{ marginBottom: '1.5rem', color: 'var(--accent)' }}>WiFi Keychain</h2>
+          
+          {/* Saved Networks List */}
+          <div style={{ marginBottom: '2rem', border: '1px solid var(--glass-border)', borderRadius: '12px', overflow: 'hidden' }}>
+            {wifiNetworks.map((net, idx) => (
+              <div 
+                key={idx} 
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  padding: '1rem', 
+                  background: activeWifiIndex === idx ? 'rgba(34, 197, 94, 0.1)' : 'transparent',
+                  borderBottom: idx < wifiNetworks.length - 1 ? '1px solid var(--glass-border)' : 'none'
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {net.ssid}
+                    {activeWifiIndex === idx && <span style={{ fontSize: '0.6rem', background: 'var(--success)', padding: '2px 6px', borderRadius: '10px' }}>ACTIVE</span>}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>••••••••</div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <button 
+                    className="btn" 
+                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem', background: '#475569' }}
+                    onClick={() => startEditingWifi(idx)}
+                  >Edit</button>
+                  {activeWifiIndex !== idx && (
+                    <button 
+                      className="btn" 
+                      style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem', background: 'var(--accent)' }}
+                      onClick={() => activateWifiNetwork(idx)}
+                    >Connect</button>
+                  )}
+                  <button 
+                    className="btn" 
+                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem', background: '#ef4444' }}
+                    onClick={() => deleteWifiNetwork(idx)}
+                  >Del</button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <h3 style={{ fontSize: '1rem', marginBottom: '1rem', color: editingWifiIndex !== null ? 'var(--accent)' : 'var(--text-muted)' }}>
+            {editingWifiIndex !== null ? '✏️ Editing Network' : '+ Add New Network'}
+          </h3>
           <div className="form-group">
             <label>WiFi SSID (Name)</label>
             <input 
@@ -673,14 +802,27 @@ export default function Dashboard() {
               onChange={e => setWifiPass(e.target.value)} 
             />
           </div>
-          <button 
-            className="btn" 
-            onClick={updateWifiSettings}
-            disabled={isSubmitting}
-            style={{ width: '100%', marginTop: '2rem' }}
-          >
-            {isSubmitting ? 'Syncing...' : '💾 Save & Sync Credentials'}
-          </button>
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+            <button 
+              className="btn" 
+              onClick={addWifiNetwork}
+              disabled={isSubmitting}
+              style={{ flex: 2 }}
+            >
+              {isSubmitting ? 'Saving...' : (editingWifiIndex !== null ? '💾 Update Network' : '💾 Add to Keychain')}
+            </button>
+            {editingWifiIndex !== null && (
+              <button 
+                className="btn" 
+                style={{ flex: 1, background: '#475569' }}
+                onClick={() => {
+                  setEditingWifiIndex(null);
+                  setWifiSSID('');
+                  setWifiPass('');
+                }}
+              >Cancel</button>
+            )}
+          </div>
         </div>
       )}
     </div>

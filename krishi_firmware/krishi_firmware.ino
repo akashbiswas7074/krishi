@@ -8,9 +8,16 @@
 #include <WiFiClientSecure.h>
 #include <vector>
 
-// --- WIFI CONFIG ---
-const char *ssid = "Jharna's A15";
-const char *password = "12345678";
+#include <Preferences.h>
+
+// --- WIFI CONFIG (Smart Keychain) ---
+struct WiFiNetwork {
+  String ssid;
+  String pass;
+};
+std::vector<WiFiNetwork> keychain;
+int activeWifiIndex = 0;
+Preferences preferences;
 
 // The Vercel URL for fetching data
 const char *serverUrl = "https://krishi-zxek.vercel.app/api/active-product";
@@ -113,14 +120,33 @@ void setup() {
   Serial.println("📺 Initializing Screen 2 (Details)...");
   tft2.begin(8000000);
   tft2.setRotation(3);
-  tft2.fillScreen(ILI9341_BLACK);
+  tft2.fillScreen(ILI9341_WHITE);
   tft2.setCursor(20, 100);
-  tft2.setTextColor(ILI9341_GREEN);
+  tft2.setTextColor(ILI9341_BLACK);
   tft2.setTextSize(2);
   tft2.print("READY");
 
   TJpgDec.setJpgScale(1);
   TJpgDec.setCallback(tft_output);
+
+  // Load persistent WiFi Keychain
+  preferences.begin("krishi_wifi", false);
+  String json = preferences.getString("keychain", "");
+  if (json.length() > 0) {
+    DynamicJsonDocument doc(2048);
+    deserializeJson(doc, json);
+    JsonArray arr = doc.as<JsonArray>();
+    keychain.clear();
+    for (JsonObject net : arr) {
+      keychain.push_back({net["ssid"].as<String>(), net["pass"].as<String>()});
+    }
+    activeWifiIndex = preferences.getInt("activeIndex", 0);
+    Serial.println("📁 WiFi Keychain loaded (" + String(keychain.size()) + " networks)");
+  } else {
+    // Default fallback
+    keychain.push_back({"Jharna's A15", "12345678"});
+    Serial.println("ℹ️ Using default WiFi fallback.");
+  }
 
   connectToWifi();
   syncAllData();
@@ -131,6 +157,17 @@ void setup() {
 void loop() {
   if (WiFi.status() != WL_CONNECTED) {
     connectToWifi();
+  }
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("⚠️ Connection lost. Retrying...");
+    tft2.fillRect(250, 0, 70, 50, ILI9341_RED);
+    tft2.setCursor(255, 15);
+    tft2.setTextColor(ILI9341_WHITE);
+    tft2.setTextSize(1);
+    tft2.print("OFFLINE");
+    connectToWifi();
+    return;
   }
 
   unsigned long currentMillis = millis();
@@ -175,25 +212,87 @@ void loop() {
 }
 
 void connectToWifi() {
-  Serial.print("Connecting to WiFi...");
-  WiFi.begin(ssid, password);
-  tft2.fillScreen(ILI9341_BLACK);
-  tft2.setCursor(20, 100);
-  tft2.setTextColor(ILI9341_WHITE);
-  tft2.setTextSize(2);
-  tft2.println("Connecting WiFi...");
+  if (keychain.size() == 0) return;
 
-  int counter = 0;
-  while (WiFi.status() != WL_CONNECTED && counter < 20) {
-    delay(500);
-    counter++;
-  }
-  if (WiFi.status() == WL_CONNECTED) {
-    tft2.fillScreen(ILI9341_BLACK);
+  bool connected = false;
+  int startIdx = activeWifiIndex;
+  
+  // Try all networks in keychain, starting with the designated "Active" one
+  for (int i = 0; i < keychain.size(); i++) {
+    int currentTry = (startIdx + i) % keychain.size();
+    String targetSsid = keychain[currentTry].ssid;
+    String targetPass = keychain[currentTry].pass;
+
+    Serial.print("📡 Hunting WiFi [");
+    Serial.print(i+1);
+    Serial.print("/");
+    Serial.print(keychain.size());
+    Serial.print("]: ");
+    Serial.println(targetSsid);
+
+    tft2.fillScreen(ILI9341_WHITE);
     tft2.setCursor(20, 100);
-    tft2.setTextColor(KRISHI_GREEN);
-    tft2.println("CONNECTED!");
+    tft2.setTextColor(ILI9341_BLACK);
+    tft2.setTextSize(2);
+    tft2.println("HUNTING...");
+    tft2.setCursor(20, 130);
+    tft2.setTextSize(1);
+    tft2.println(targetSsid);
+
+    WiFi.disconnect();
+    WiFi.begin(targetSsid.c_str(), targetPass.c_str());
+
+    // Wait up to 10 seconds per network
+    unsigned long start = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
+      delay(500);
+      Serial.print(".");
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("\n✅ Connected to " + targetSsid);
+      connected = true;
+      activeWifiIndex = currentTry; // Update local tracker to current success
+      break;
+    } else {
+      Serial.println("\n❌ Failed to connect to " + targetSsid);
+    }
+  }
+
+  if (connected) {
+    tft2.fillScreen(ILI9341_WHITE);
+    tft2.setCursor(20, 100);
+    tft2.setTextColor(ILI9341_DARKCYAN);
+    tft2.setTextSize(2);
+    tft2.println("ONLINE");
     delay(1000);
+  } else {
+    tft2.fillScreen(ILI9341_WHITE);
+    tft2.setCursor(20, 100);
+    tft2.setTextColor(ILI9341_RED);
+    tft2.setTextSize(2);
+    tft2.println("OFFLINE");
+    tft2.setCursor(20, 130);
+    tft2.setTextSize(1);
+    tft2.println("Keychain search failed.");
+    delay(3000);
+  }
+}
+
+void drawWifiBars(int x, int y, int rssi) {
+  int bars = 0;
+  if (rssi > -60)
+    bars = 4;
+  else if (rssi > -70)
+    bars = 3;
+  else if (rssi > -80)
+    bars = 2;
+  else if (rssi > -90)
+    bars = 1;
+
+  for (int i = 0; i < 4; i++) {
+    uint16_t color = (i < bars) ? KRISHI_GREEN : ILI9341_LIGHTGREY;
+    tft2.fillRect(x + (i * 5), y + (12 - (i * 3)), 3, (i * 3) + 3, color);
   }
 }
 
@@ -272,10 +371,13 @@ void streamImageFromWeb(String id) {
           int read = 0;
           unsigned long start = millis();
 
-          // Read in chunks with a timeout
+          tft1.fillRect(0, 235, 320, 5, 0xC618); // Gray track
           while (read < size && (millis() - start < 5000)) {
             if (stream->available()) {
               buffer[read++] = stream->read();
+              // Update Progress Bar
+              int progress = (read * 320) / size;
+              tft1.fillRect(0, 235, progress, 5, ILI9341_BLUE);
             }
           }
 
@@ -312,12 +414,11 @@ void fetchServerStatus() {
       deserializeJson(doc, payload);
 
       if (!doc.isNull()) {
-        bool remoteSlideshowStatus = doc["isSlideshowActive"];
+        bool remoteSlideshowStatus = doc["isSlideshowActive"] | false;
         if (isSlideshowActive != remoteSlideshowStatus) {
           isSlideshowActive = remoteSlideshowStatus;
           if (isSlideshowActive) {
             lastSlideshowStep = millis();
-            // Smart Resume: Start slideshow from the current product
             if (focusedProductId != "") {
               for (int i = 0; i < activeProducts.size(); i++) {
                 if (activeProducts[i].id == focusedProductId) {
@@ -354,6 +455,53 @@ void fetchServerStatus() {
         } else {
           focusedProductId = "";
         }
+
+        // WiFi Smart Sync Logic (Full Keychain)
+        if (doc.containsKey("wifiNetworks")) {
+          JsonArray nets = doc["wifiNetworks"].as<JsonArray>();
+          int remoteActiveIdx = doc["activeWifiIndex"].as<int>();
+          
+          bool changed = false;
+          if (nets.size() != keychain.size() || remoteActiveIdx != activeWifiIndex) {
+            changed = true;
+          } else {
+            for (int i = 0; i < nets.size(); i++) {
+              if (nets[i]["ssid"].as<String>() != keychain[i].ssid || 
+                  nets[i]["pass"].as<String>() != keychain[i].pass) {
+                changed = true;
+                break;
+              }
+            }
+          }
+
+          if (changed) {
+            Serial.println("🔄 WiFi Keychain update detected! Syncing to Flash...");
+            keychain.clear();
+            for (JsonObject net : nets) {
+              keychain.push_back({net["ssid"].as<String>(), net["pass"].as<String>()});
+            }
+            activeWifiIndex = remoteActiveIdx;
+
+            // Serialize and Save to Flash
+            String jsonSync;
+            serializeJson(nets, jsonSync);
+            preferences.putString("keychain", jsonSync);
+            preferences.putInt("activeIndex", activeWifiIndex);
+            
+            tft2.fillScreen(ILI9341_WHITE);
+            tft2.setCursor(20, 100);
+            tft2.setTextColor(ILI9341_BLUE);
+            tft2.setTextSize(2);
+            tft2.println("KEYCHAIN SYNCED!");
+            tft2.println("Reconnecting...");
+            delay(2000);
+            WiFi.disconnect();
+            connectToWifi();
+          }
+        }
+
+        // Draw WiFi signal on Screen 2
+        drawWifiBars(295, 10, WiFi.RSSI());
       }
     }
     http.end();
@@ -367,7 +515,7 @@ void displayProduct(ProductData p) {
   Serial.printf("\n--- Product: %s ---\n", p.name.c_str());
   turnOffAllLeds();
   updateScreen2(p.name.c_str(), p.crops.c_str(), p.y25, p.y26, p.aspiration,
-                p.unit.c_str());
+                p.unit.c_str(), p.ledPin, p.ledPins2);
   streamImageFromWeb(p.id);
 
   currentLoadedImageId = p.id;
@@ -389,50 +537,72 @@ void displayProduct(ProductData p) {
 }
 
 void updateScreen2(const char *name, const char *crops, int y25, int y26,
-                   int asp, const char *unit) {
+                   int asp, const char *unit, int l1, std::vector<int> l2) {
   digitalWrite(TFT_CS1, HIGH);
   digitalWrite(TFT_CS2, LOW);
-  tft2.fillScreen(ILI9341_BLACK);
-  tft2.fillRect(0, 0, 320, 50, 0x18EA);
-  tft2.setTextColor(ILI9341_WHITE);
+  tft2.fillScreen(ILI9341_WHITE);
+  tft2.fillRect(0, 0, 320, 50, KRISHI_GREEN);
+  tft2.setTextColor(ILI9341_BLACK);
   tft2.setTextSize(3);
   tft2.setCursor(10, 12);
   tft2.print(name);
+
   tft2.setTextSize(2);
   tft2.setCursor(10, 60);
-  tft2.setTextColor(KRISHI_GREEN);
+  tft2.setTextColor(0x03E0); // Dark Green
   tft2.print("Crops: ");
+  tft2.setTextColor(ILI9341_BLACK);
   tft2.print(crops);
+
   tft2.setTextColor(ILI9341_BLUE);
   tft2.setCursor(10, 100);
   tft2.print("2025-26 Sales:");
   tft2.setCursor(10, 120);
-  tft2.setTextColor(ILI9341_WHITE);
+  tft2.setTextColor(ILI9341_BLACK);
   tft2.print(y25);
   tft2.print(" ");
   tft2.print(unit);
-  tft2.setTextColor(ILI9341_CYAN);
+
+  tft2.setTextColor(0xF800); // Red-ish for secondary
   tft2.setCursor(10, 150);
   tft2.print("2026-27 Sales:");
   tft2.setCursor(10, 170);
-  tft2.setTextColor(ILI9341_WHITE);
+  tft2.setTextColor(ILI9341_BLACK);
   tft2.print(y26);
   tft2.print(" ");
   tft2.print(unit);
-  tft2.setTextColor(KRISHI_GREEN);
+
+  tft2.setTextColor(0x7800); // Maroon
   tft2.setCursor(10, 200);
   tft2.print("TARGET:");
-  tft2.setCursor(10, 220);
-  tft2.setTextColor(ILI9341_WHITE);
+  tft2.setCursor(100, 200);
+  tft2.setTextColor(ILI9341_BLACK);
   tft2.print(asp);
   tft2.print(" ");
   tft2.print(unit);
+
+  // Pin Debug Section
+  tft2.drawFastHLine(0, 222, 320, 0xD6BA); // Light Gray
+  tft2.setTextSize(1);
+  tft2.setTextColor(0x7BEF); // Dark Gray
+  tft2.setCursor(10, 230);
+  tft2.print("ACTIVE PINS: 5V[");
+  tft2.print(l1);
+  tft2.print("] | 12V[");
+  for (int i = 0; i < l2.size(); i++) {
+    tft2.print(l2[i]);
+    if (i < l2.size() - 1)
+      tft2.print(",");
+  }
+  tft2.print("]");
+
   digitalWrite(TFT_CS2, HIGH);
 }
 
 void showWaitingScreen() {
-  tft1.fillScreen(ILI9341_BLACK);
+  tft1.fillScreen(ILI9341_WHITE);
   tft1.setCursor(40, 100);
+  tft1.setTextColor(ILI9341_BLACK);
   tft1.setTextSize(2);
   tft1.println("Waiting for Select...");
 }
