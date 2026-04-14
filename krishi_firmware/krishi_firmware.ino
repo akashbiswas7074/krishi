@@ -82,8 +82,10 @@ const unsigned long debounceDelay = 300;
 // --- JPEG CALLBACK ---
 bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h,
                 uint16_t *bitmap) {
-  if (y >= tft1.height())
-    return false;
+  // If the MCU block is completely off-screen, just skip it but return true
+  // returning false would abort the entire decoding process!
+  if (y >= tft1.height() || x >= tft1.width()) return true;
+
   tft1.drawRGBBitmap(x, y, bitmap, w, h);
   return true;
 }
@@ -284,12 +286,8 @@ void syncAllData() {
 
 void downloadImageToFS(String id) {
   String filename = "/" + id + ".jpg";
-
-  // NOTE: We used to skip if it exists, but now we overwrite
-  // to ensure any updated images (converted from WebP to JPEG)
-  // on the dashboard are correctly reflected on the hardware.
-
-  String url = String(bitmapApiUrl) + id;
+  // Sync timestamp to bypass internet/Vercel caching
+  String url = String(bitmapApiUrl) + id + "&t=" + String(millis()); 
   WiFiClientSecure client;
   client.setInsecure();
   HTTPClient http;
@@ -304,14 +302,28 @@ void downloadImageToFS(String id) {
 
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
-        int contentLen = http.getSize();
-        Serial.printf("📥 Downloading %d bytes...\n", contentLen);
+      int contentLen = http.getSize();
+      size_t used = LittleFS.usedBytes();
+      size_t total = LittleFS.totalBytes();
+      
+      Serial.printf("📥 Downloading %d bytes... (Storage: %d/%d used)\n", contentLen, used, total);
 
-        File file = LittleFS.open(filename, "w");
-        if (file) {
-          int bytesWritten = http.writeToStream(&file);
-          file.close();
-          
+      if (contentLen > 0 && (total - used) < (size_t)contentLen + 1024) {
+        Serial.println("🚨 STORAGE FULL! Cannot save image.");
+        http.end();
+        return;
+      }
+
+      File file = LittleFS.open(filename, "w");
+      if (file) {
+        int bytesWritten = http.writeToStream(&file);
+        file.close();
+        Serial.printf("✅ Saved %d bytes\n", bytesWritten);
+
+        if (contentLen > 0 && bytesWritten != contentLen) {
+          Serial.printf("❌ SIZE MISMATCH! Expected %d, got %d. Deleting.\n", contentLen, bytesWritten);
+          LittleFS.remove(filename);
+        } else {
           // Debug Integrity Check
           File check = LittleFS.open(filename, "r");
           if (check) {
@@ -320,23 +332,19 @@ void downloadImageToFS(String id) {
             Serial.printf("🔍 SOI Header: 0x%02X 0x%02X\n", header[0], header[1]);
             check.close();
             
-            if (header[0] == 0xFF && header[1] == 0xD8) {
-              Serial.println("✅ Valid JPEG SOI Record.");
+            if (header[0] != 0xFF || header[1] != 0xD8) {
+              Serial.println("❌ INVALID JPEG Header! Deleting.");
+              LittleFS.remove(filename);
             } else {
-              Serial.println("❌ ERROR: Not a valid JPEG (Missing SOI)!");
+              Serial.println("✅ Valid JPEG Header.");
             }
           }
-          
-          Serial.printf("✅ Image Saved: %s (%d bytes)\n", filename.c_str(), bytesWritten);
-        } else {
-          Serial.print("❌ LittleFS Error: Could not open file for writing: ");
-          Serial.println(filename);
         }
+      } else {
+        Serial.println("❌ LittleFS: Could not open file for writing.");
+      }
     } else {
-      Serial.print("Error: Download failed for ");
-      Serial.print(id);
-      Serial.print(" httpCode: ");
-      Serial.println(httpCode);
+      Serial.printf("❌ HTTP Error: %d for ID: %s\n", httpCode, id.c_str());
     }
     http.end();
   } else {
@@ -493,19 +501,24 @@ void drawLocalImage(const char *id) {
       if (decodeResult == 0) return; // Full Success
 
       Serial.printf("❌ JPEG Decode Error: %d\n", decodeResult);
+    } else {
+      Serial.println("❌ JPEG Header Error: getFsSize failed.");
     }
 
-    // If we are here, either getFsJpgSize failed or drawFsJpg failed
+    // If we are here, something failed
     Serial.println("🚨 CORRUPTION DETECTED! Starting Self-Healing...");
     
-    // Show Healing UI
+    // Show Healing UI with progress
     tft1.fillScreen(ILI9341_ORANGE);
     tft1.setTextColor(ILI9341_BLACK);
     tft1.setTextSize(2);
-    tft1.setCursor(40, 100);
-    tft1.println("HEALING IMAGE...");
-    tft1.setCursor(40, 130);
+    tft1.setCursor(40, 60);
+    tft1.println("HEALING...");
+    tft1.setCursor(40, 90);
     tft1.println(id);
+    tft1.setCursor(40, 140);
+    tft1.setTextSize(1);
+    tft1.printf("Attempt %d of 2", retry + 1);
 
     LittleFS.remove(filename);
     delay(500);
@@ -521,10 +534,47 @@ void showErrorScreen(String filename, String reason) {
   tft1.fillScreen(ILI9341_RED);
   tft1.setTextColor(ILI9341_WHITE);
   tft1.setTextSize(2);
-  tft1.setCursor(10, 80);
+  
+  tft1.setCursor(10, 20);
   tft1.print(reason + ":");
-  tft1.setCursor(10, 110);
+  
+  tft1.setCursor(10, 45);
+  tft1.setTextSize(1);
   tft1.println(filename);
+
+  // HEX HEADER DUMP
+  tft1.setCursor(10, 70);
+  tft1.setTextSize(2);
+  tft1.print("HEAD: ");
+  File f = LittleFS.open(filename, "r");
+  if (f) {
+    for (int i = 0; i < 4; i++) {
+       int b = f.read();
+       if (b != -1) {
+         if (b < 16) tft1.print("0");
+         tft1.print(b, HEX);
+         tft1.print(" ");
+       }
+    }
+    f.close();
+  } else {
+    tft1.print("NO FILE");
+  }
+
+  // Storage Stats
+  size_t used = LittleFS.usedBytes();
+  size_t total = LittleFS.totalBytes();
+  
+  tft1.setCursor(10, 110);
+  tft1.print("Used: "); tft1.print(used / 1024); tft1.print(" KB");
+  tft1.setCursor(10, 140);
+  tft1.print("Free: "); tft1.print((total - used) / 1024); tft1.print(" KB");
+
+  tft1.setCursor(10, 180);
+  tft1.setTextSize(1);
+  tft1.println("If HEAD is 3C 21 44 4F -> HTML ERROR");
+  tft1.println("If HEAD is FF D8 FF E0 -> VALID JPG");
+  tft1.println("If HEAD is FF D8 FF DB -> NO JFIF");
 }
 
 void updateScreen2(const char *name, const char *crops, int y25, int y26,
