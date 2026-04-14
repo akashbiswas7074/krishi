@@ -466,47 +466,65 @@ void displayProduct(ProductData p) {
 
 void drawLocalImage(const char *id) {
   String filename = "/" + String(id) + ".jpg";
-  Serial.print("🔍 Checking LittleFS for: ");
-  Serial.println(filename);
+  bool healed = false;
 
-  if (!LittleFS.exists(filename)) {
-    Serial.println("⚠️ Image NOT FOUND in LittleFS. Requesting sync...");
-    tft1.fillScreen(ILI9341_WHITE);
-    tft1.setCursor(10, 100);
-    tft1.setTextColor(ILI9341_RED);
+  for (int retry = 0; retry < 2; retry++) {
+    Serial.print("🔍 Checking LittleFS for: ");
+    Serial.println(filename);
+
+    if (!LittleFS.exists(filename)) {
+      Serial.println("⚠️ Image NOT FOUND. Requesting download...");
+      downloadImageToFS(id);
+      if (!LittleFS.exists(filename)) {
+        showErrorScreen(filename, "MISSING FILE");
+        return;
+      }
+    }
+
+    uint16_t w = 0, h = 0;
+    if (TJpgDec.getFsJpgSize(&w, &h, filename.c_str()) == 0) {
+      // SUCCESS: Image is valid
+      tft1.fillScreen(ILI9341_WHITE);
+      Serial.print("🎨 Drawing Image: ");
+      Serial.print(filename);
+      Serial.printf(" (%dx%d)\n", w, h);
+
+      int decodeResult = TJpgDec.drawFsJpg(0, 0, filename.c_str());
+      if (decodeResult == 0) return; // Full Success
+
+      Serial.printf("❌ JPEG Decode Error: %d\n", decodeResult);
+    }
+
+    // If we are here, either getFsJpgSize failed or drawFsJpg failed
+    Serial.println("🚨 CORRUPTION DETECTED! Starting Self-Healing...");
+    
+    // Show Healing UI
+    tft1.fillScreen(ILI9341_ORANGE);
+    tft1.setTextColor(ILI9341_BLACK);
     tft1.setTextSize(2);
-    tft1.print("IMAGE NOT FOUND:");
-    tft1.setCursor(10, 130);
-    tft1.print(filename);
-    return;
+    tft1.setCursor(40, 100);
+    tft1.println("HEALING IMAGE...");
+    tft1.setCursor(40, 130);
+    tft1.println(id);
+
+    LittleFS.remove(filename);
+    delay(500);
+    downloadImageToFS(id);
+    healed = true;
   }
 
-  uint16_t w = 0, h = 0;
-  if (TJpgDec.getFsJpgSize(&w, &h, filename.c_str()) != 0) {
-      Serial.println("❌ JPEG Size Error: File might be corrupted or not a JPEG.");
-      tft1.fillScreen(ILI9341_RED);
-      tft1.setTextColor(ILI9341_WHITE);
-      tft1.setCursor(10, 100);
-      tft1.print("CORRUPT IMAGE:");
-      tft1.setCursor(10, 130);
-      tft1.print(filename);
-      return;
-  }
+  // If we exit the loop, healing failed twice
+  showErrorScreen(filename, "HEAL FAILED");
+}
 
-  tft1.fillScreen(ILI9341_WHITE);
-  
-  Serial.print("🎨 Drawing Image: ");
-  Serial.print(filename);
-  Serial.printf(" (%dx%d)\n", w, h);
-
-  int decodeResult = TJpgDec.drawFsJpg(0, 0, filename.c_str());
-  if (decodeResult != 0) {
-    Serial.printf("❌ JPEG Error: %d\n", decodeResult);
-    tft1.setCursor(10, 20);
-    tft1.setTextColor(ILI9341_RED);
-    tft1.print("DECODE FAIL: ");
-    tft1.print(decodeResult);
-  }
+void showErrorScreen(String filename, String reason) {
+  tft1.fillScreen(ILI9341_RED);
+  tft1.setTextColor(ILI9341_WHITE);
+  tft1.setTextSize(2);
+  tft1.setCursor(10, 80);
+  tft1.print(reason + ":");
+  tft1.setCursor(10, 110);
+  tft1.println(filename);
 }
 
 void updateScreen2(const char *name, const char *crops, int y25, int y26,
