@@ -2,7 +2,6 @@
 #include <Adafruit_ILI9341.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
-#include <LittleFS.h>
 #include <SPI.h>
 #include <TJpg_Decoder.h>
 #include <WiFi.h>
@@ -16,31 +15,28 @@ const char *password = "12345678";
 // The Vercel URL for fetching data
 const char *serverUrl = "https://krishi-zxek.vercel.app/api/active-product";
 const char *allProductsUrl = "https://krishi-zxek.vercel.app/api/products";
-const String bitmapApiUrl =
-    "https://krishi-zxek.vercel.app/api/product-bitmap?id=";
+const String bitmapApiUrl = "https://krishi-zxek.vercel.app/api/product-bitmap?id=";
 
 // --- PIN CONFIG (ESP32-S3) ---
-#define TFT_SCK 12    // Primary SPI SCK
-#define TFT_MOSI 11   // Primary SPI MOSI
-#define TFT_MISO 13   // Primary SPI MISO (Optional for OLED)
+#define TFT_SCK 12
+#define TFT_MOSI 11
+#define TFT_MISO 13
 
 // Screen 1 (Visual)
-#define TFT_CS1   2  // ULTIMATE SAFE PIN (No memory or strapping links)
+#define TFT_CS1   2
 #define TFT_DC1  21
 #define TFT_RST1 47
 
 // Screen 2 (Details)
 #define TFT_CS2  14
 #define TFT_DC2  17
-#define TFT_RST2 45  // SAFE (Avoids RGB LED conflict on 48)
+#define TFT_RST2 45
 
 // --- DISPLAY COLOR THEME ---
 #define KRISHI_GREEN 0x07E0
-#define KRISHI_DARK 0x18E3
-#define ILI9341_GREY 0x5AEB
-#define SELECT_BUTTON_PIN 0  // Boot button on most S3 kits
+#define KRISHI_DARK 0x18EA
+#define SELECT_BUTTON_PIN 0
 
-// Link the displays to the remapped global SPI object via constructor
 Adafruit_ILI9341 tft1 = Adafruit_ILI9341(&SPI, TFT_DC1, TFT_CS1, TFT_RST1);
 Adafruit_ILI9341 tft2 = Adafruit_ILI9341(&SPI, TFT_DC2, TFT_CS2, TFT_RST2);
 
@@ -57,17 +53,15 @@ struct ProductData {
   std::vector<int> ledPins2;
 };
 
-std::vector<ProductData>
-    activeProducts; // Only those with isActive: true from server
+std::vector<ProductData> activeProducts;
 
 // --- STATE TRACKING ---
 int lastLedPin1 = -1;
 std::vector<int> lastLedPins2;
 unsigned long lastStatusUpdate = 0;
 unsigned long lastSlideshowStep = 0;
-const unsigned long statusInterval = 5000; // Check web server every 5 seconds
-const unsigned long slideshowInterval =
-    10000; // Change product every 10 seconds in auto mode
+const unsigned long statusInterval = 5000;
+const unsigned long slideshowInterval = 10000;
 
 String currentLoadedImageId = "";
 String focusedProductId = "";
@@ -75,17 +69,12 @@ bool isSlideshowActive = true;
 int slideshowIndex = 0;
 bool isSyncing = false;
 
-// Selection Button State
 unsigned long lastButtonPress = 0;
-const unsigned long debounceDelay = 300; 
+const unsigned long debounceDelay = 300;
 
 // --- JPEG CALLBACK ---
-bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h,
-                uint16_t *bitmap) {
-  // If the MCU block is completely off-screen, just skip it but return true
-  // returning false would abort the entire decoding process!
+bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t *bitmap) {
   if (y >= tft1.height() || x >= tft1.width()) return true;
-
   tft1.drawRGBBitmap(x, y, bitmap, w, h);
   return true;
 }
@@ -93,17 +82,11 @@ bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h,
 void setup() {
   Serial.begin(115200);
 
-  if (!LittleFS.begin(true)) {
-    Serial.println("LittleFS Mount Failed");
-  }
-
-  // 1. Force CS pins HIGH immediately
   pinMode(TFT_CS1, OUTPUT);
   pinMode(TFT_CS2, OUTPUT);
   digitalWrite(TFT_CS1, HIGH);
   digitalWrite(TFT_CS2, HIGH);
 
-  // 2. Hardware Reset Pulse
   pinMode(TFT_RST1, OUTPUT); 
   pinMode(TFT_RST2, OUTPUT);
   digitalWrite(TFT_RST1, LOW);
@@ -115,24 +98,23 @@ void setup() {
 
   SPI.begin(TFT_SCK, TFT_MISO, TFT_MOSI);
 
-  // SPI was already mapped in begin(SCK, MISO, MOSI)
-  Serial.println("📺 Initializing Screen 1...");
-  tft1.begin(8000000); // 8MHz is the ultimate safe speed for long wires
+  Serial.println("📺 Initializing Screen 1 (Visuals)...");
+  tft1.begin(8000000);
   tft1.setRotation(1);
   tft1.fillScreen(ILI9341_WHITE); 
+  tft1.setCursor(20, 100);
   tft1.setTextColor(ILI9341_BLACK);
   tft1.setTextSize(2);
-  tft1.setCursor(20, 100);
-  tft1.print("WAITING FOR IMAGE...");
+  tft1.print("WAITING FOR STREAM...");
 
-  Serial.println("📺 Initializing Screen 2...");
-  tft2.begin(8000000); // 8MHz is the ultimate safe speed for long wires
+  Serial.println("📺 Initializing Screen 2 (Details)...");
+  tft2.begin(8000000);
   tft2.setRotation(1);
   tft2.fillScreen(ILI9341_BLACK);
   tft2.setCursor(20, 100);
   tft2.setTextColor(ILI9341_GREEN);
   tft2.setTextSize(2);
-  tft2.print("SCREEN 2 ACTIVE");
+  tft2.print("READY");
 
   TJpgDec.setJpgScale(1);
   TJpgDec.setCallback(tft_output);
@@ -150,32 +132,24 @@ void loop() {
 
   unsigned long currentMillis = millis();
 
-  // 1. POLLING WEB STATUS (Every 5s)
   if (currentMillis - lastStatusUpdate >= statusInterval && !isSyncing) {
     lastStatusUpdate = currentMillis;
     fetchServerStatus();
   }
 
-  // 2. HARDWARE BUTTON LOGIC (GPIO 0)
   if (digitalRead(SELECT_BUTTON_PIN) == LOW) {
     if (currentMillis - lastButtonPress > debounceDelay) {
       lastButtonPress = currentMillis;
-      Serial.println("Button Pressed: Cycling Product...");
-      
       if (activeProducts.size() > 0) {
-        // Toggle Manual Mode
         isSlideshowActive = false; 
-        
         slideshowIndex = (slideshowIndex + 1) % activeProducts.size();
         displayProduct(activeProducts[slideshowIndex]);
-        lastSlideshowStep = currentMillis; // Reset slideshow timer
+        lastSlideshowStep = currentMillis;
       }
     }
   }
 
-  // 3. DISPLAY LOGIC
   if (isSlideshowActive) {
-    // SLIDESHOW MODE: Cycle through activeProducts list
     if (activeProducts.size() > 0) {
       if (currentMillis - lastSlideshowStep >= slideshowInterval) {
         lastSlideshowStep = currentMillis;
@@ -186,7 +160,6 @@ void loop() {
       showWaitingScreen();
     }
   } else {
-    // FIXED MODE: Show ONLY focusedProductId
     if (focusedProductId != "" && currentLoadedImageId != focusedProductId) {
       for (auto &p : activeProducts) {
         if (p.id == focusedProductId) {
@@ -199,10 +172,8 @@ void loop() {
 }
 
 void connectToWifi() {
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
+  Serial.print("Connecting to WiFi...");
   WiFi.begin(ssid, password);
-
   tft2.fillScreen(ILI9341_BLACK);
   tft2.setCursor(20, 100);
   tft2.setTextColor(ILI9341_WHITE);
@@ -212,10 +183,8 @@ void connectToWifi() {
   int counter = 0;
   while (WiFi.status() != WL_CONNECTED && counter < 20) {
     delay(500);
-    Serial.print(".");
     counter++;
   }
-
   if (WiFi.status() == WL_CONNECTED) {
     tft2.fillScreen(ILI9341_BLACK);
     tft2.setCursor(20, 100);
@@ -227,12 +196,6 @@ void connectToWifi() {
 
 void syncAllData() {
   isSyncing = true;
-  tft2.fillScreen(ILI9341_BLACK);
-  tft2.setCursor(20, 80);
-  tft2.setTextColor(ILI9341_WHITE);
-  tft2.setTextSize(2);
-  tft2.println("SYNCING DATA...");
-
   WiFiClientSecure client;
   client.setInsecure();
   HTTPClient http;
@@ -246,13 +209,8 @@ void syncAllData() {
 
       JsonArray arr = doc.as<JsonArray>();
       activeProducts.clear();
-      int activeCount = 0;
-
       for (JsonObject p : arr) {
-        if (!p["isActive"])
-          continue; // Only sync active ones for display memory efficiency
-
-        activeCount++;
+        if (!p["isActive"]) continue;
         ProductData prod;
         prod.id = p["id"].as<String>();
         prod.name = p["name"].as<String>();
@@ -262,93 +220,76 @@ void syncAllData() {
         prod.aspiration = p["aspiration"];
         prod.unit = p["unit"] | "Kg";
         prod.ledPin = p["ledPin"] | 0;
-        
         JsonArray pins2 = p["ledPins2"].as<JsonArray>();
-        for (int pin : pins2) {
-          prod.ledPins2.push_back(pin);
-        }
-
+        for (int pin : pins2) prod.ledPins2.push_back(pin);
         activeProducts.push_back(prod);
-        downloadImageToFS(prod.id);
       }
-      Serial.print("Sync Complete. Found active products: ");
-      Serial.println(activeCount);
     }
     http.end();
   }
   isSyncing = false;
-
-  // Start with first product if in slideshow
-  if (activeProducts.size() > 0) {
-    displayProduct(activeProducts[0]);
-  }
+  if (activeProducts.size() > 0) displayProduct(activeProducts[0]);
 }
 
-void downloadImageToFS(String id) {
-  String filename = "/" + id + ".jpg";
-  // Sync timestamp to bypass internet/Vercel caching
-  String url = String(bitmapApiUrl) + id + "&t=" + String(millis()); 
+void streamImageFromWeb(String id) {
+  // Sync timestamp bypasses cache and ensures we get the latest JFIF-fixed version
+  String url = String(bitmapApiUrl) + id + "&t=" + String(millis());
+  
   WiFiClientSecure client;
   client.setInsecure();
   HTTPClient http;
 
-  if (http.begin(client, url)) {
-    // Show loading indicator on Screen 2
-    tft2.fillRect(0, 100, 320, 40, ILI9341_BLACK);
-    tft2.setCursor(20, 110);
-    tft2.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
-    tft2.setTextSize(2);
-    tft2.print("FETCHING IMAGE...");
+  Serial.printf("\n🌐 Streaming [%s]: %s\n", id.c_str(), url.c_str());
+  
+  // Show loading indicator on Screen 1
+  tft1.fillScreen(ILI9341_WHITE);
+  tft1.setCursor(60, 100);
+  tft1.setTextColor(ILI9341_BLACK);
+  tft1.setTextSize(2);
+  tft1.print("STREAMING...");
 
+  if (http.begin(client, url)) {
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
-      int contentLen = http.getSize();
-      size_t used = LittleFS.usedBytes();
-      size_t total = LittleFS.totalBytes();
-      
-      Serial.printf("📥 Downloading %d bytes... (Storage: %d/%d used)\n", contentLen, used, total);
-
-      if (contentLen > 0 && (total - used) < (size_t)contentLen + 1024) {
-        Serial.println("🚨 STORAGE FULL! Cannot save image.");
-        http.end();
-        return;
-      }
-
-      File file = LittleFS.open(filename, "w");
-      if (file) {
-        int bytesWritten = http.writeToStream(&file);
-        file.close();
-        Serial.printf("✅ Saved %d bytes\n", bytesWritten);
-
-        if (contentLen > 0 && bytesWritten != contentLen) {
-          Serial.printf("❌ SIZE MISMATCH! Expected %d, got %d. Deleting.\n", contentLen, bytesWritten);
-          LittleFS.remove(filename);
-        } else {
-          // Debug Integrity Check
-          File check = LittleFS.open(filename, "r");
-          if (check) {
-            uint8_t header[2];
-            check.read(header, 2);
-            Serial.printf("🔍 SOI Header: 0x%02X 0x%02X\n", header[0], header[1]);
-            check.close();
-            
-            if (header[0] != 0xFF || header[1] != 0xD8) {
-              Serial.println("❌ INVALID JPEG Header! Deleting.");
-              LittleFS.remove(filename);
-            } else {
-              Serial.println("✅ Valid JPEG Header.");
-            }
-          }
+      int size = http.getSize();
+      if (size > 0) {
+        // Try PSRAM first, fallback to Heap if PSRAM fails
+        uint8_t* buffer = (uint8_t*)ps_malloc(size);
+        if (!buffer) {
+          Serial.println("⚠️ PSRAM Failed, trying Heap...");
+          buffer = (uint8_t*)malloc(size);
         }
-      } else {
-        Serial.println("❌ LittleFS: Could not open file for writing.");
+
+        if (buffer) {
+          WiFiClient *stream = http.getStreamPtr();
+          int read = 0;
+          unsigned long start = millis();
+          
+          // Read in chunks with a timeout
+          while (read < size && (millis() - start < 5000)) {
+             if (stream->available()) {
+                buffer[read++] = stream->read();
+             }
+          }
+          
+          Serial.printf("📥 Received %d/%d bytes\n", read, size);
+          
+          if (read == size) {
+            tft1.fillScreen(ILI9341_WHITE);
+            TJpgDec.drawJpg(0, 0, buffer, size);
+            Serial.println("✅ OK.");
+          } else {
+            Serial.println("❌ TIMEOUT.");
+          }
+          free(buffer);
+        } else {
+          Serial.println("❌ CRITICAL: NO MEMORY");
+        }
       }
     } else {
-      Serial.printf("❌ HTTP Error: %d for ID: %s\n", httpCode, id.c_str());
+      Serial.printf("❌ HTTP Error: %d\n", httpCode);
     }
     http.end();
-  } else {
-    Serial.println("Error: HTTP Begin failed for image fetch");
   }
 }
 
@@ -360,65 +301,40 @@ void fetchServerStatus() {
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
       String payload = http.getString();
-      // Increased buffer to handle larger product lists and metadata
       DynamicJsonDocument doc(32768); 
       deserializeJson(doc, payload);
 
-      if (doc.isNull()) {
-        Serial.println("Error: Failed to parse poll JSON");
-      }
+      if (!doc.isNull()) {
+        bool remoteSlideshowStatus = doc["isSlideshowActive"];
+        if (isSlideshowActive != remoteSlideshowStatus) {
+          isSlideshowActive = remoteSlideshowStatus;
+          if (isSlideshowActive) lastSlideshowStep = millis();
+        }
 
-      bool remoteSlideshowStatus = doc["isSlideshowActive"];
-      
-      // 1. Detect Mode Change & Reset Timer
-      if (isSlideshowActive != remoteSlideshowStatus) {
-        isSlideshowActive = remoteSlideshowStatus;
-        if (isSlideshowActive) {
-          lastSlideshowStep = millis(); // Reset timer to scroll immediately
-          Serial.println("Mode: SLIDESHOW (Timer Reset)");
+        if (doc.containsKey("activeProducts")) {
+          JsonArray arr = doc["activeProducts"].as<JsonArray>();
+          activeProducts.clear();
+          for (JsonObject p : arr) {
+            ProductData prod;
+            prod.id = p["id"].as<String>();
+            prod.name = p["name"].as<String>();
+            prod.crops = p["crops"].as<String>();
+            prod.y25 = p["y25"];
+            prod.y26 = p["y26"];
+            prod.aspiration = p["aspiration"];
+            prod.unit = p["unit"] | "Kg";
+            prod.ledPin = p["ledPin"] | 0;
+            JsonArray pins2 = p["ledPins2"].as<JsonArray>();
+            for (int pin : pins2) prod.ledPins2.push_back(pin);
+            activeProducts.push_back(prod);
+          }
+        }
+
+        if (!isSlideshowActive && doc["focusedProductId"].is<const char *>()) {
+          focusedProductId = doc["focusedProductId"].as<String>();
         } else {
-          Serial.println("Mode: FIXED");
+          focusedProductId = "";
         }
-      }
-
-      // 2. LIVE SYNC: Update activeProducts list from server
-      if (doc.containsKey("activeProducts")) {
-        JsonArray arr = doc["activeProducts"].as<JsonArray>();
-        activeProducts.clear();
-        
-        for (JsonObject p : arr) {
-          ProductData prod;
-          prod.id = p["id"].as<String>();
-          prod.name = p["name"].as<String>();
-          prod.crops = p["crops"].as<String>();
-          prod.y25 = p["y25"];
-          prod.y26 = p["y26"];
-          prod.aspiration = p["aspiration"];
-          prod.unit = p["unit"] | "Kg";
-          prod.ledPin = p["ledPin"] | 0;
-          
-          JsonArray pins2 = p["ledPins2"].as<JsonArray>();
-          for (int pin : pins2) {
-            prod.ledPins2.push_back(pin);
-          }
-
-          activeProducts.push_back(prod);
-
-          // Background check: Do we have the image for this new product?
-          String filename = "/" + prod.id + ".jpg";
-          if (!LittleFS.exists(filename)) {
-            Serial.print("New Product Detected! Downloading: ");
-            Serial.println(prod.id);
-            downloadImageToFS(prod.id);
-          }
-        }
-      }
-
-      // 3. Handle Focused Product
-      if (!isSlideshowActive && doc["focusedProductId"].is<const char *>()) {
-        focusedProductId = doc["focusedProductId"].as<String>();
-      } else {
-        focusedProductId = "";
       }
     }
     http.end();
@@ -426,205 +342,50 @@ void fetchServerStatus() {
 }
 
 void displayProduct(ProductData p) {
-  if (currentLoadedImageId == p.id)
-    return; // Prevent flicker
-
-  Serial.println("\n------------------------------");
-  Serial.print("Displaying: ");
-  Serial.println(p.name);
+  if (currentLoadedImageId == p.id) return;
   
+  Serial.printf("\n--- Product: %s ---\n", p.name.c_str());
   turnOffAllLeds();
-
-  // Update Screens
-  updateScreen2(p.name.c_str(), p.crops.c_str(), p.y25, p.y26, p.aspiration,
-                p.unit.c_str());
-  drawLocalImage(p.id.c_str());
+  updateScreen2(p.name.c_str(), p.crops.c_str(), p.y25, p.y26, p.aspiration, p.unit.c_str());
+  streamImageFromWeb(p.id);
+  
   currentLoadedImageId = p.id;
 
-  // LED Activation: 5V Status Pin
-  if (p.ledPin > 0) {
-    if (p.ledPin != 19 && p.ledPin != 20) {
-      pinMode(p.ledPin, OUTPUT);
-      digitalWrite(p.ledPin, HIGH);
-      lastLedPin1 = p.ledPin;
-      Serial.printf(" - 5V Status LED ON: Pin %d\n", p.ledPin);
-    } else {
-      Serial.println(" - WARNING: Skipping 5V LED (USB Pin Conflict)");
-    }
+  if (p.ledPin > 0 && p.ledPin != 19 && p.ledPin != 20) {
+    pinMode(p.ledPin, OUTPUT);
+    digitalWrite(p.ledPin, HIGH);
+    lastLedPin1 = p.ledPin;
   }
 
-  // LED Activation: 12V Crop Pins
   lastLedPins2.clear();
-  Serial.printf(" - 12V Crop Pins Count: %d\n", p.ledPins2.size());
-  
   for (int pin : p.ledPins2) {
-    if (pin > 0) {
-      if (pin != 19 && pin != 20) {
-        pinMode(pin, OUTPUT);
-        digitalWrite(pin, HIGH);
-        lastLedPins2.push_back(pin);
-        Serial.printf("   -> Crop LED ON: Pin %d\n", pin);
-      } else {
-        Serial.printf("   -> WARNING: Skipping 12V Pin %d (USB Conflict)\n", pin);
-      }
+    if (pin > 0 && pin != 19 && pin != 20) {
+      pinMode(pin, OUTPUT);
+      digitalWrite(pin, HIGH);
+      lastLedPins2.push_back(pin);
     }
   }
-  Serial.println("------------------------------\n");
 }
 
-void drawLocalImage(const char *id) {
-  String filename = "/" + String(id) + ".jpg";
-  bool healed = false;
-
-  for (int retry = 0; retry < 2; retry++) {
-    Serial.print("🔍 Checking LittleFS for: ");
-    Serial.println(filename);
-
-    if (!LittleFS.exists(filename)) {
-      Serial.println("⚠️ Image NOT FOUND. Requesting download...");
-      downloadImageToFS(id);
-      if (!LittleFS.exists(filename)) {
-        showErrorScreen(filename, "MISSING FILE");
-        return;
-      }
-    }
-
-    uint16_t w = 0, h = 0;
-    if (TJpgDec.getFsJpgSize(&w, &h, filename.c_str()) == 0) {
-      // SUCCESS: Image is valid
-      tft1.fillScreen(ILI9341_WHITE);
-      Serial.print("🎨 Drawing Image: ");
-      Serial.print(filename);
-      Serial.printf(" (%dx%d)\n", w, h);
-
-      int decodeResult = TJpgDec.drawFsJpg(0, 0, filename.c_str());
-      if (decodeResult == 0) return; // Full Success
-
-      Serial.printf("❌ JPEG Decode Error: %d\n", decodeResult);
-    } else {
-      Serial.println("❌ JPEG Header Error: getFsSize failed.");
-    }
-
-    // If we are here, something failed
-    Serial.println("🚨 CORRUPTION DETECTED! Starting Self-Healing...");
-    
-    // Show Healing UI with progress
-    tft1.fillScreen(ILI9341_ORANGE);
-    tft1.setTextColor(ILI9341_BLACK);
-    tft1.setTextSize(2);
-    tft1.setCursor(40, 60);
-    tft1.println("HEALING...");
-    tft1.setCursor(40, 90);
-    tft1.println(id);
-    tft1.setCursor(40, 140);
-    tft1.setTextSize(1);
-    tft1.printf("Attempt %d of 2", retry + 1);
-
-    LittleFS.remove(filename);
-    delay(500);
-    downloadImageToFS(id);
-    healed = true;
-  }
-
-  // If we exit the loop, healing failed twice
-  showErrorScreen(filename, "HEAL FAILED");
-}
-
-void showErrorScreen(String filename, String reason) {
-  tft1.fillScreen(ILI9341_RED);
-  tft1.setTextColor(ILI9341_WHITE);
-  tft1.setTextSize(2);
-  
-  tft1.setCursor(10, 20);
-  tft1.print(reason + ":");
-  
-  tft1.setCursor(10, 45);
-  tft1.setTextSize(1);
-  tft1.println(filename);
-
-  // HEX HEADER DUMP
-  tft1.setCursor(10, 70);
-  tft1.setTextSize(2);
-  tft1.print("HEAD: ");
-  File f = LittleFS.open(filename, "r");
-  if (f) {
-    for (int i = 0; i < 4; i++) {
-       int b = f.read();
-       if (b != -1) {
-         if (b < 16) tft1.print("0");
-         tft1.print(b, HEX);
-         tft1.print(" ");
-       }
-    }
-    f.close();
-  } else {
-    tft1.print("NO FILE");
-  }
-
-  // Storage Stats
-  size_t used = LittleFS.usedBytes();
-  size_t total = LittleFS.totalBytes();
-  
-  tft1.setCursor(10, 110);
-  tft1.print("Used: "); tft1.print(used / 1024); tft1.print(" KB");
-  tft1.setCursor(10, 140);
-  tft1.print("Free: "); tft1.print((total - used) / 1024); tft1.print(" KB");
-
-  tft1.setCursor(10, 180);
-  tft1.setTextSize(1);
-  tft1.println("If HEAD is 3C 21 44 4F -> HTML ERROR");
-  tft1.println("If HEAD is FF D8 FF E0 -> VALID JPG");
-  tft1.println("If HEAD is FF D8 FF DB -> NO JFIF");
-}
-
-void updateScreen2(const char *name, const char *crops, int y25, int y26,
-                   int asp, const char *unit) {
-  // Explicitly disable other screen to prevent "bleed" or overlapping signals
+void updateScreen2(const char *name, const char *crops, int y25, int y26, int asp, const char *unit) {
   digitalWrite(TFT_CS1, HIGH);
   digitalWrite(TFT_CS2, LOW);
-
   tft2.fillScreen(ILI9341_BLACK);
-
-  // Header - Use opaque text to prevent any background bleed
-  tft2.fillRect(0, 0, 320, 50, KRISHI_DARK);
-  tft2.setTextColor(ILI9341_WHITE, KRISHI_DARK);
+  tft2.fillRect(0, 0, 320, 50, 0x18EA);
+  tft2.setTextColor(ILI9341_WHITE);
   tft2.setTextSize(3);
   tft2.setCursor(10, 12);
   tft2.print(name);
-
   tft2.setTextSize(2);
   tft2.setCursor(10, 60);
-  tft2.setTextColor(KRISHI_GREEN, ILI9341_BLACK);
-  tft2.print("Crops: ");
-  tft2.print(crops);
-
-  tft2.setTextColor(ILI9341_BLUE, ILI9341_BLACK);
-  tft2.setCursor(10, 100);
-  tft2.print("2025-26 Sales:");
-  tft2.setCursor(10, 120);
-  tft2.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
-  tft2.print(y25);
-  tft2.print(" ");
-  tft2.print(unit);
-
-  tft2.setTextColor(ILI9341_CYAN, ILI9341_BLACK);
-  tft2.setCursor(10, 150);
-  tft2.print("2026-27 Sales:");
-  tft2.setCursor(10, 170);
-  tft2.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
-  tft2.print(y26);
-  tft2.print(" ");
-  tft2.print(unit);
-
-  tft2.setTextColor(KRISHI_GREEN, ILI9341_BLACK);
-  tft2.setCursor(10, 200);
-  tft2.print("ASPIRATION TARGET:");
-  tft2.setCursor(10, 220);
-  tft2.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
-  tft2.print(asp);
-  tft2.print(" ");
-  tft2.print(unit);
-
+  tft2.setTextColor(KRISHI_GREEN);
+  tft2.print("Crops: "); tft2.print(crops);
+  tft2.setTextColor(ILI9341_BLUE); tft2.setCursor(10, 100); tft2.print("2025-26 Sales:");
+  tft2.setCursor(10, 120); tft2.setTextColor(ILI9341_WHITE); tft2.print(y25); tft2.print(" "); tft2.print(unit);
+  tft2.setTextColor(ILI9341_CYAN); tft2.setCursor(10, 150); tft2.print("2026-27 Sales:");
+  tft2.setCursor(10, 170); tft2.setTextColor(ILI9341_WHITE); tft2.print(y26); tft2.print(" "); tft2.print(unit);
+  tft2.setTextColor(KRISHI_GREEN); tft2.setCursor(10, 200); tft2.print("TARGET:");
+  tft2.setCursor(10, 220); tft2.setTextColor(ILI9341_WHITE); tft2.print(asp); tft2.print(" "); tft2.print(unit);
   digitalWrite(TFT_CS2, HIGH);
 }
 
@@ -633,14 +394,10 @@ void showWaitingScreen() {
   tft1.setCursor(40, 100);
   tft1.setTextSize(2);
   tft1.println("Waiting for Select...");
-  tft2.fillScreen(ILI9341_BLACK);
 }
 
 void turnOffAllLeds() {
-  if (lastLedPin1 > 0) {
-    digitalWrite(lastLedPin1, LOW);
-  }
-  for (int pin : lastLedPins2) {
-    digitalWrite(pin, LOW);
-  }
+  if (lastLedPin1 > 0) digitalWrite(lastLedPin1, LOW);
+  for (int pin : lastLedPins2) digitalWrite(pin, LOW);
 }
+
