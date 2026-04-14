@@ -9,7 +9,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   await dbConnect();
   const product = await Product.findOne({ id });
-  
+
   if (!product || !product.imageUrl) {
     // Return a blank black JPEG if no image
     const blank = await sharp({
@@ -25,12 +25,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     let finalUrl = product.imageUrl;
-    
+
     // Cloudinary Smart Optimization: Transform to 320x240 on the CDN side
     if (finalUrl.includes('cloudinary.com')) {
       // Ensure https protocol
       if (finalUrl.startsWith('//')) finalUrl = 'https:' + finalUrl;
-      
+
       // Inject transformation flags: w_640,h_480,c_limit (preserves aspect ratio)
       finalUrl = finalUrl.replace('/upload/', '/upload/w_640,h_480,c_limit/');
     }
@@ -50,13 +50,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Final safety resize for ESP32 (in case Cloudinary trans fails or it's a non-cloudinary URL)
     const processed = await sharp(buffer)
-      .trim({ threshold: 40 }) // Much more aggressive margin removal
-      .resize(320, 240, { 
-        fit: 'cover',
+      // .trim({ threshold: 40 }) // Much more aggressive margin removal
+      .resize(320, 240, {
+        fit: 'contain',
         background: { r: 255, g: 255, b: 255 }
       })
       .rotate() // Auto-rotate based on EXIF before stripping
-      .jpeg({ 
+      .jpeg({
         quality: 70,                // Balanced quality
         chromaSubsampling: '4:2:0', // Standard subsampling for hardware
         progressive: false,         // MUST be false for hardware decoders
@@ -67,14 +67,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .toBuffer();
 
     console.log(`✅ Image Ready [${id}]: ${processed.length} bytes`);
-    
+
     // CACHE CONTROL: Set to no-store to force hardware to get fresh images during fix
     res.setHeader('Content-Type', 'image/jpeg');
     res.setHeader('Content-Length', processed.length);
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    
+
     // Use .end() with the buffer for strict binary transport
     res.end(processed);
   } catch (error) {
