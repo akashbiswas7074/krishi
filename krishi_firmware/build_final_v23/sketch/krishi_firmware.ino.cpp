@@ -82,6 +82,31 @@ unsigned long lastButtonPress = 0;
 const unsigned long debounceDelay = 300; 
 
 // --- JPEG CALLBACK ---
+#line 83 "/home/akashbiswas7797/Desktop/projects/krisi/krishi_firmware/krishi_firmware.ino"
+bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t *bitmap);
+#line 91 "/home/akashbiswas7797/Desktop/projects/krisi/krishi_firmware/krishi_firmware.ino"
+void setup();
+#line 144 "/home/akashbiswas7797/Desktop/projects/krisi/krishi_firmware/krishi_firmware.ino"
+void loop();
+#line 199 "/home/akashbiswas7797/Desktop/projects/krisi/krishi_firmware/krishi_firmware.ino"
+void connectToWifi();
+#line 226 "/home/akashbiswas7797/Desktop/projects/krisi/krishi_firmware/krishi_firmware.ino"
+void syncAllData();
+#line 285 "/home/akashbiswas7797/Desktop/projects/krisi/krishi_firmware/krishi_firmware.ino"
+void downloadImageToFS(String id);
+#line 347 "/home/akashbiswas7797/Desktop/projects/krisi/krishi_firmware/krishi_firmware.ino"
+void fetchServerStatus();
+#line 420 "/home/akashbiswas7797/Desktop/projects/krisi/krishi_firmware/krishi_firmware.ino"
+void displayProduct(ProductData p);
+#line 467 "/home/akashbiswas7797/Desktop/projects/krisi/krishi_firmware/krishi_firmware.ino"
+void drawLocalImage(const char *id);
+#line 512 "/home/akashbiswas7797/Desktop/projects/krisi/krishi_firmware/krishi_firmware.ino"
+void updateScreen2(const char *name, const char *crops, int y25, int y26, int asp, const char *unit);
+#line 563 "/home/akashbiswas7797/Desktop/projects/krisi/krishi_firmware/krishi_firmware.ino"
+void showWaitingScreen();
+#line 571 "/home/akashbiswas7797/Desktop/projects/krisi/krishi_firmware/krishi_firmware.ino"
+void turnOffAllLeds();
+#line 83 "/home/akashbiswas7797/Desktop/projects/krisi/krishi_firmware/krishi_firmware.ino"
 bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h,
                 uint16_t *bitmap) {
   if (y >= tft1.height())
