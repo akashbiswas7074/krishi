@@ -55,9 +55,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         fit: 'contain',
         background: { r: 0, g: 0, b: 0 }
       })
+      .rotate() // Auto-rotate based on EXIF before stripping
       .jpeg({ 
-        quality: 60, // Standard quality
-        progressive: false 
+        quality: 60,                // Slightly higher base quality for clarity
+        chromaSubsampling: '4:2:0', // Standard subsampling
+        progressive: false,         // MUST be false for hardware
+        optimiseScans: false        // Disable MozJPEG scan optimization
       })
       .toBuffer();
 

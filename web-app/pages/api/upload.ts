@@ -34,18 +34,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!base64Data) throw new Error('Invalid image format');
     const buffer = Buffer.from(base64Data, 'base64');
 
-    // 2. Convert to WebP using Sharp
-    const webpBuffer = await sharp(buffer)
-      .webp({ quality: 80 })
+    // 2. Convert to JPEG using Sharp
+    const jpegBuffer = await sharp(buffer)
+      .jpeg({ quality: 90 })
       .toBuffer();
 
-    // 3. Upload specifically as WebP to Cloudinary via Stream
+    // 3. Upload specifically as JPG to Cloudinary via Stream
     const uploadFromBuffer = (buffer: Buffer) => {
       return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
           { 
             folder: 'agrarian_products',
-            format: 'webp'
+            format: 'jpg'
           },
           (error, result) => {
             if (result) resolve(result);
@@ -56,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     };
 
-    const uploadResponse: any = await uploadFromBuffer(webpBuffer);
+    const uploadResponse: any = await uploadFromBuffer(jpegBuffer);
 
     return res.status(200).json({ imageUrl: uploadResponse.secure_url });
   } catch (error) {
