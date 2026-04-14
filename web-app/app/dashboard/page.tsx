@@ -116,6 +116,24 @@ export default function Dashboard() {
     };
   }, [tab, isAdmin]);
 
+  // Local slideshow timer to sync Web View with Hardware auto-scroll
+  useEffect(() => {
+    if (!isSlideshowActive || products.length === 0) return;
+
+    const interval = setInterval(() => {
+      const activeList = products.filter(p => p.isActive);
+      if (activeList.length === 0) return;
+
+      setActiveProduct(prev => {
+        const currentIndex = activeList.findIndex(p => p.id === prev?.id);
+        const nextIndex = (currentIndex + 1) % activeList.length;
+        return activeList[nextIndex];
+      });
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [isSlideshowActive, products]);
+
   // Auto-resume slideshow on first dashboard load to sync hardware
   useEffect(() => {
     resumeSlideshow();
